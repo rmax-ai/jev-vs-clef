@@ -1,0 +1,13 @@
+{
+  "run_id": "run-20261003-main",
+  "started_utc": "2026-10-03T17:19:48Z",
+  "phases": [
+    "smoke",
+    "probe",
+    "main"
+  ],
+  "tasks_total": 159,
+  "battery_sha256": "fdcc8a762718848705a3db1b3130f941196fc981e8fdd74b3d52b575440cbe20",
+  "python": "3.13.5",
+  "budget_usd": 0.25
+}

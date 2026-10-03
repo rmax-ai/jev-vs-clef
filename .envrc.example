@@ -1,0 +1,18 @@
+# Example environment file for the jev-vs-clef battery (direnv).
+#
+# Copy to `.envrc`, fill in your own keys, then run:   direnv allow
+# `.envrc` is gitignored — never commit real keys.
+#
+# Cloudflare Workers AI (clef / clef-flash arms):
+export CLOUDFLARE_ACCOUNT_ID="your-cloudflare-account-id"
+export CLOUDFLARE_API_TOKEN="your-workers-ai-api-token"
+#
+# Jev arm (Vercel AI Gateway evaluation-model API):
+export JEV_API_KEY="your-api-key"
+#
+# Optional overrides:
+# export JEV_BASE_URL="https://ai-gateway.vercel.sh/v4/ai/evaluation-model"
+# export JEV_MODEL="typesafe-ai/jev"
+#
+# Keys can come from any secret manager instead of literals, e.g.:
+#   export CLOUDFLARE_API_TOKEN=$(your-secret-manager get cloudflare/workers-ai)
