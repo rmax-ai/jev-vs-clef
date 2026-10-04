@@ -17,7 +17,7 @@ Clef follows the System One API that Jev uses: same `{state, questions}` concept
 ## Wire notes (what is identical, what is not)
 
 - **Identical:** state bytes, question ids, instructions, criteria, thresholds. The runner records `state_sha256` per call so payload parity is auditable.
-- **Mapped:** the yes/no question type keyword. Cloudflare documents `noul`; the Jev gateway validates `boolean`. The harness maps `noul` → `boolean` for the jev arm only (see `map_questions_for_arm` in `harness/stress.py`). This is the only byte-level difference between arms.
+- **Mapped:** the yes/no question type keyword — one naming seam, two hosted spellings. The System One wire type is `noul` (TypeSafe's native API and docs; Cloudflare's clef docs, which define it as "a yes/no question"; TypeSafe states plainly the wire type is not `boolean`). The Vercel AI Gateway evaluation API — the Jev path this harness uses — spells the same type `boolean` and rejects `noul` server-side (`HTTP 400`, `Invalid discriminator value. Expected 'choice' | 'score' | 'boolean'`). clef symmetrically rejects `boolean` (`HTTP 400`; Cloudflare's validator garbles it as `required properties at '/' are 'model,state,questions'`). The harness maps `noul` → `boolean` for the jev arm only (see `map_questions_for_arm` in `harness/stress.py`). Both directions re-verified live 2026-10-04. This is the only byte-level difference between arms.
 - **Arm-specific:** `images` (Clef extension; Jev has no vision), and the endpoint used per provider (both plain HTTP REST).
 
 ## Battery structure

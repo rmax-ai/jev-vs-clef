@@ -253,11 +253,12 @@ class Recorder:
 
 
 def map_questions_for_arm(questions: dict, arm: str) -> dict:
-    """Keyword mapping only: System One 'noul' <-> gateway 'boolean'.
+    """Keyword mapping only: System One 'noul' <-> Vercel evaluation API 'boolean'.
 
     Clef follows the System One wire format with type ``noul`` for yes/no
-    questions; the Jev gateway validates the same semantics as ``boolean``.
-    All other bytes are identical between arms.
+    questions; the Vercel AI Gateway evaluation API used for the jev arm
+    validates the same semantics as ``boolean``. All other bytes are identical
+    between arms.
     """
     if arm != "jev":
         return questions

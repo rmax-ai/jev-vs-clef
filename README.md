@@ -27,7 +27,7 @@ Cloudflare shipped Clef (Oct 1, 2026) as "fully Jev-API compatible" with vision 
 - **Determinism differs.** Clef repeats are byte-identical (gate/cache friendly); Jev repeats drift numerically on probabilities (±0.01–0.04 across observed runs) with stable labels.
 - **Latency is queue-bound during launch week.** ~18–19 s per clef call from our test environment, identical under 4-way parallelism (1.05×) — scale-from-zero, not compute (advertised medians: 209 ms / 39 ms). Re-measure before latency-sensitive use.
 - **Clef adds vision** (3/3 on the synthetic shapes image, both sizes), 64-question requests, ids with dots/dashes, array states — and retains needles to ~13 KB states. The API does **not** enforce an escape label (a 2-option choice was accepted); an escape-label policy stays caller-side.
-- **One wire gap in the "swap" story:** clef expects `noul`, the Jev gateway expects `boolean` (each rejects the other's keyword). The harness maps this single field per arm.
+- **One wire gap in the "swap" story:** clef follows the System One API and expects `noul` — the native wire type for yes/no questions (TypeSafe's API and Cloudflare's docs agree). The Vercel AI Gateway evaluation API, the Jev path this harness uses, names the same type `boolean`; Vercel's docs bridge the two ("on the TypeSafe-compatible API, the equivalent question type is Noul"). Each surface rejects the other's keyword — re-verified live 2026-10-04. The harness maps this single field per arm.
 
 Full tables: [results/run-20261003-main/report.md](results/run-20261003-main/report.md) · raw evidence: [calls.jsonl](results/run-20261003-main/calls.jsonl) · spend: **$0.0097 computed / $0.017 conservative estimate** across 159 calls, no unexpected failures.
 <!-- RESULTS:END -->

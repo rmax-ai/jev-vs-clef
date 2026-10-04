@@ -111,7 +111,9 @@ def call(
     """POST one decision request to Jev. Returns a result dict (never raises on HTTP errors).
 
     ``state``: string, or object/array for structured state.
-    ``questions``: dict of question id -> {"type": "boolean"|"choice"|"score", ...}.
+    ``questions``: dict of question id -> {"type": "boolean"|"choice"|"score", ...}
+    (``boolean`` is this gateway's spelling of the System One ``noul`` type —
+    see SPEC.md wire notes).
     """
     key = load_api_key()
     base_url = os.environ.get("JEV_BASE_URL", DEFAULT_BASE_URL)
