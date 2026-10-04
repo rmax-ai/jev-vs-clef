@@ -25,7 +25,7 @@ Cloudflare shipped Clef (Oct 1, 2026) as "fully Jev-API compatible" with vision 
 - **All three arms resisted both prompt-injection probes** (C06 urgency flip, C07 route flip): 6/6 held.
 - **Format sensitivity is real for yes/no questions.** The same refund request scored "urgent" 0.90 (prose) / 0.86 (flat JSON) / 0.09 (nested JSON) on clef; the `rm -rf` destructive probe moved across arms on at least one format. Choice and score answers were stable across formats. Keep the state format fixed per pipeline and re-validate when it changes.
 - **Determinism differs.** Clef repeats are byte-identical (gate/cache friendly); Jev repeats drift numerically on probabilities (±0.01–0.04 across observed runs) with stable labels.
-- **Latency is queue-bound during launch week.** ~18–19 s per clef call from our test environment, identical under 4-way parallelism (1.05×) — scale-from-zero, not compute (advertised medians: 209 ms / 39 ms). Re-measure before latency-sensitive use.
+- **Latency is queue-bound during launch week.** ~18–19 s per clef call from our test environment, identical under 4-way parallelism (1.03×) — scale-from-zero, not compute (advertised medians: 209 ms / 39 ms). Re-measure before latency-sensitive use.
 - **Clef adds vision** (3/3 on the synthetic shapes image, both sizes), 64-question requests, ids with dots/dashes, array states — and retains needles to ~13 KB states. The API does **not** enforce an escape label (a 2-option choice was accepted); an escape-label policy stays caller-side.
 - **One wire gap in the "swap" story:** clef expects `noul`, the Jev gateway expects `boolean` (each rejects the other's keyword). The harness maps this single field per arm.
 
