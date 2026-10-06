@@ -1,0 +1,13 @@
+{
+ "cases_run": 6,
+ "checks_passed": 13,
+ "checks_total": 13,
+ "computed_usd": 0.000424,
+ "estimate_usd": 0.017785,
+ "label": "run-20261006-vision-demo",
+ "model": "clef-flash",
+ "ok": 6,
+ "started_utc": "2026-10-06T20:39:10.692522+00:00",
+ "tokens_in": 4710,
+ "wall_s": 111.2
+}
