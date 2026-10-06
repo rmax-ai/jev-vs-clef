@@ -51,6 +51,18 @@ Full tables: [launch run report](results/run-20261003-main/report.md) · [raw ca
 
 All states are synthetic; every arm receives byte-identical `state` + `questions` for a case (the single exception — the yes/no type keyword `noul` ↔ `boolean` — is mapped per arm and documented in [SPEC.md](SPEC.md)). Raw per-call evidence (request hashes, latencies, usage, full result bodies) lives in each run's `calls.jsonl`; the rerun's `provenance.json` records the harness hashes, repo SHA, and environment.
 
+## Vision demo (clef-flash)
+
+A companion demo runs clef-flash on six production-shaped vision gates — screenshot triage, a pre-click UI-automation guardrail, a dashboard alert gate, a two-screenshot change check, document-intake routing, and a photo-cull pre-filter. One call per case; each call batches its questions. All fixtures are synthetic and drawn from primitives.
+
+Measured 2026-10-06 (`run-20261006-vision-demo`): 6/6 calls ok, 13/13 sanity checks, 4,710 input tokens, **$0.000424 computed (~$0.00007/call)** — see [VISION-DEMO.md](VISION-DEMO.md) for the transcript, cost model, and limits.
+
+```bash
+direnv exec . /usr/bin/python3 harness/vision_demo.py --dry-run   # list tasks + estimates, no calls
+direnv exec . /usr/bin/python3 harness/vision_demo.py             # all cases, clef-flash (6 calls ≈ $0.0004)
+direnv exec . /usr/bin/python3 harness/vision_demo.py --model clef # same payloads on the 27B arm
+```
+
 ## Reproduce
 
 ```bash
@@ -75,8 +87,12 @@ harness/clef_client.py     Cloudflare REST client (env-var creds; usage-based co
 harness/jev_client.py      Jev gateway HTTP client (env-var key; pinned evaluation-model v4 protocol)
 harness/stress.py          runner — smoke / probe / main, spend + time guards, JSONL evidence
 harness/report.py          analysis — agreement, stability, determinism, batching, edges → report.md
+harness/vision_demo.py     clef-flash vision demo — 6 production-shaped gates + measured run
+harness/make_vision_fixtures.py  regenerates assets/vision_demo/*.png (Pillow; draw-only, no external assets)
+assets/vision_demo/        synthetic fixtures for the vision demo
 results/                   committed runs: calls.jsonl + report.md + summary.json (+ provenance for the rerun)
 SPEC.md                    test design, metrics definitions, wire notes, safety notes
+VISION-DEMO.md             vision demo — use cases, measured transcript, cost model, limits
 ```
 
 ## Caveats — read before quoting numbers
@@ -88,4 +104,4 @@ SPEC.md                    test design, metrics definitions, wire notes, safety 
 
 ## Provenance
 
-Built 2026-10-03; rerun added 2026-10-06; harness and analysis written with AI assistance. Clef model documentation: <https://developers.cloudflare.com/workers-ai/models/clef/>. Jev: <https://www.typesafe.ai> (System One).
+Built 2026-10-03; rerun and vision demo added 2026-10-06; harness and analysis written with AI assistance. Clef model documentation: <https://developers.cloudflare.com/workers-ai/models/clef/>. Jev: <https://www.typesafe.ai> (System One).
