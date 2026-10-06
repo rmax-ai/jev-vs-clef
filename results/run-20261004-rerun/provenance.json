@@ -1,0 +1,58 @@
+{
+  "run_id": "run-20261004-rerun",
+  "directory_label_note": "Directory label is fixed by the rerun execution contract; the actual execution window is the timestamps below.",
+  "execution": {
+    "started_utc": "2026-10-06T19:33:06Z",
+    "last_call_utc": "2026-10-06T19:39:06Z",
+    "host": "rmax-10",
+    "os": "Linux 6.12.111+deb13-arm64 aarch64",
+    "python": "3.13.5",
+    "timezone": "UTC"
+  },
+  "repo": {
+    "branch": "main",
+    "head_sha_at_run_start": "5d3106604cd6f5df08c9eb85ca60f7c32eec3998",
+    "head_subject": "docs: pin the noul/boolean keyword seam to the Vercel evaluation API (re-verified live)",
+    "worktree_clean_at_run_start": true
+  },
+  "inputs_sha256": {
+    "cases/stress_battery.json": "fdcc8a762718848705a3db1b3130f941196fc981e8fdd74b3d52b575440cbe20",
+    "harness/stress.py": "207585b3fc6adc43c6f7b37036fd75e8cc16e4f0dc1f3b2abb1b8248d37ba90f",
+    "harness/report.py": "b87cc01dab0aec39846eff65c9871f1627d63613e27cee2640702bfc1ce168b4",
+    "harness/clef_client.py": "7f8f893974b27a38016f57a9eacc5427b95cfd9963f67a5a9c229265c9915fe4",
+    "harness/jev_client.py": "e07e06e73b00ff90157aed5c4b4e7ce5712a41640da42187d04d2b4609611435"
+  },
+  "harness_delta_vs_launch_run": "Commit 5d31066 differs from the launch-run commit (4097859) in README/SPEC wording and in docstring/comment text only (harness/jev_client.py, harness/stress.py) \u2014 no behavioral change; the battery bytes are identical (sha above) in both runs' meta.json.",
+  "credentials": "loaded from environment via direnv (.envrc, not committed); never printed",
+  "endpoints": {
+    "clef/clef-flash": "Cloudflare Workers AI REST @cf/cloudflare/{clef|clef-flash}",
+    "jev": "Vercel AI Gateway evaluation-model API (typesafe-ai/jev)"
+  },
+  "guards": {
+    "budget_usd": 0.25,
+    "max_seconds": 1800,
+    "phases": [
+      "smoke",
+      "probe",
+      "main"
+    ],
+    "tasks_total": 159
+  },
+  "artifacts_sha256": {
+    "calls.jsonl": "e47ac3c3ac50c7c6ca65a362c209fddb3d40e14ebb13cccaacdae04ac1f17eba",
+    "report.md": "f2e7f33b36916aaea5c82c0c06109a41c7bd61ab29a509f6ee5346593a68453e",
+    "summary.json": "f25128d24b05e5c3866864a933f6563cbba535c5d30ae83b5623493990b6304c",
+    "meta.json": "0a458eef513f4ef1a7cd1f12e5e6dff57ccd807e5884b0ddecc9300535a1dccb",
+    "delta-vs-20261003.md": "9b71294f9af0c51abc61ccfd86f65fe80de8251b172e4a686fea058f44d9a7c3",
+    "supplementary-latency-recheck.py": "63c3fce785886611fc49775ef76a73445c3818df88ca9c159b511dd9b8caa8b2",
+    "supplementary-latency-recheck.json": "be1713b47c35bb464317d02a6e3815a1205b1a646dcae94a057499dccbe31b1e"
+  },
+  "supplementary": {
+    "files": [
+      "supplementary-latency-recheck.py",
+      "supplementary-latency-recheck.json"
+    ],
+    "method": "10 sequential direct calls per model, one fixed payload; replicates the shape of the 2026-10-04 operator probes; supplementary cross-check only"
+  },
+  "generated_utc": "2026-10-06T19:46:36Z"
+}

@@ -68,7 +68,9 @@ direnv exec . /usr/bin/python3 harness/report.py results/run-<label>      # -> r
 
 Requirements: Python ≥ 3.10 (stdlib only) and the three environment variables above (`.envrc.example` is a copy-paste template; `.envrc` + `direnv` are recommended). The vision case needs `assets/shapes.png`.
 
-Concurrency: the probe phase measures 4-way parallel latency and derives the main-phase concurrency (≤8). Clef calls were launch-week slow from our test environment (~17–19 s each); re-measure before assuming those latencies.
+Concurrency: the probe phase measures 4-way parallel latency and derives the main-phase concurrency (≤8). Clef calls measured ~17–19 s each from our test environment in both committed runs — the launch-window run (2026-10-03) and the rerun (executed 2026-10-06) — while a lighter operator probe on 2026-10-04 observed sub-second medians that neither full run reproduced. Treat hosted latency as time- and environment-dependent; re-measure from the intended deployment.
+
+Two committed runs are kept for a dated comparison: `run-20261003-main` (launch window) and `run-20261004-rerun` (executed 2026-10-06; see its `delta-vs-20261003.md` and `provenance.json`).
 
 ## File map
 
