@@ -1,0 +1,267 @@
+{
+  "method": "10 sequential direct calls per model, one fixed payload; replicates the shape of the operator's 2026-10-04 manual probes; no concurrency; supplementary cross-check only",
+  "started_utc": "2026-10-06T19:40:05Z",
+  "calls": [
+    {
+      "ts": "2026-10-06T19:40:24Z",
+      "model": "clef",
+      "n": 1,
+      "ok": true,
+      "http_status": 200,
+      "latency_ms": 18337.14461326599,
+      "usage_input_tokens": 156,
+      "cost_computed_usd": 3.744e-05,
+      "error": null
+    },
+    {
+      "ts": "2026-10-06T19:40:42Z",
+      "model": "clef",
+      "n": 2,
+      "ok": true,
+      "http_status": 200,
+      "latency_ms": 18624.654054641724,
+      "usage_input_tokens": 156,
+      "cost_computed_usd": 3.744e-05,
+      "error": null
+    },
+    {
+      "ts": "2026-10-06T19:41:01Z",
+      "model": "clef",
+      "n": 3,
+      "ok": true,
+      "http_status": 200,
+      "latency_ms": 18643.702268600464,
+      "usage_input_tokens": 156,
+      "cost_computed_usd": 3.744e-05,
+      "error": null
+    },
+    {
+      "ts": "2026-10-06T19:41:19Z",
+      "model": "clef",
+      "n": 4,
+      "ok": true,
+      "http_status": 200,
+      "latency_ms": 18327.380657196045,
+      "usage_input_tokens": 156,
+      "cost_computed_usd": 3.744e-05,
+      "error": null
+    },
+    {
+      "ts": "2026-10-06T19:41:38Z",
+      "model": "clef",
+      "n": 5,
+      "ok": true,
+      "http_status": 200,
+      "latency_ms": 18824.569702148438,
+      "usage_input_tokens": 156,
+      "cost_computed_usd": 3.744e-05,
+      "error": null
+    },
+    {
+      "ts": "2026-10-06T19:41:57Z",
+      "model": "clef",
+      "n": 6,
+      "ok": true,
+      "http_status": 200,
+      "latency_ms": 18821.07949256897,
+      "usage_input_tokens": 156,
+      "cost_computed_usd": 3.744e-05,
+      "error": null
+    },
+    {
+      "ts": "2026-10-06T19:42:16Z",
+      "model": "clef",
+      "n": 7,
+      "ok": true,
+      "http_status": 200,
+      "latency_ms": 18677.46329307556,
+      "usage_input_tokens": 156,
+      "cost_computed_usd": 3.744e-05,
+      "error": null
+    },
+    {
+      "ts": "2026-10-06T19:42:35Z",
+      "model": "clef",
+      "n": 8,
+      "ok": true,
+      "http_status": 200,
+      "latency_ms": 19031.46481513977,
+      "usage_input_tokens": 156,
+      "cost_computed_usd": 3.744e-05,
+      "error": null
+    },
+    {
+      "ts": "2026-10-06T19:42:54Z",
+      "model": "clef",
+      "n": 9,
+      "ok": true,
+      "http_status": 200,
+      "latency_ms": 18831.969022750854,
+      "usage_input_tokens": 156,
+      "cost_computed_usd": 3.744e-05,
+      "error": null
+    },
+    {
+      "ts": "2026-10-06T19:43:12Z",
+      "model": "clef",
+      "n": 10,
+      "ok": true,
+      "http_status": 200,
+      "latency_ms": 18665.892601013184,
+      "usage_input_tokens": 156,
+      "cost_computed_usd": 3.744e-05,
+      "error": null
+    },
+    {
+      "ts": "2026-10-06T19:43:31Z",
+      "model": "clef-flash",
+      "n": 1,
+      "ok": true,
+      "http_status": 200,
+      "latency_ms": 18850.486040115356,
+      "usage_input_tokens": 156,
+      "cost_computed_usd": 1.404e-05,
+      "error": null
+    },
+    {
+      "ts": "2026-10-06T19:43:49Z",
+      "model": "clef-flash",
+      "n": 2,
+      "ok": true,
+      "http_status": 200,
+      "latency_ms": 18363.221168518066,
+      "usage_input_tokens": 156,
+      "cost_computed_usd": 1.404e-05,
+      "error": null
+    },
+    {
+      "ts": "2026-10-06T19:44:09Z",
+      "model": "clef-flash",
+      "n": 3,
+      "ok": true,
+      "http_status": 200,
+      "latency_ms": 19058.321952819824,
+      "usage_input_tokens": 156,
+      "cost_computed_usd": 1.404e-05,
+      "error": null
+    },
+    {
+      "ts": "2026-10-06T19:44:27Z",
+      "model": "clef-flash",
+      "n": 4,
+      "ok": true,
+      "http_status": 200,
+      "latency_ms": 18102.927446365356,
+      "usage_input_tokens": 156,
+      "cost_computed_usd": 1.404e-05,
+      "error": null
+    },
+    {
+      "ts": "2026-10-06T19:44:46Z",
+      "model": "clef-flash",
+      "n": 5,
+      "ok": true,
+      "http_status": 200,
+      "latency_ms": 19292.47283935547,
+      "usage_input_tokens": 156,
+      "cost_computed_usd": 1.404e-05,
+      "error": null
+    },
+    {
+      "ts": "2026-10-06T19:45:04Z",
+      "model": "clef-flash",
+      "n": 6,
+      "ok": true,
+      "http_status": 200,
+      "latency_ms": 18272.013902664185,
+      "usage_input_tokens": 156,
+      "cost_computed_usd": 1.404e-05,
+      "error": null
+    },
+    {
+      "ts": "2026-10-06T19:45:23Z",
+      "model": "clef-flash",
+      "n": 7,
+      "ok": true,
+      "http_status": 200,
+      "latency_ms": 18503.546953201294,
+      "usage_input_tokens": 156,
+      "cost_computed_usd": 1.404e-05,
+      "error": null
+    },
+    {
+      "ts": "2026-10-06T19:45:42Z",
+      "model": "clef-flash",
+      "n": 8,
+      "ok": true,
+      "http_status": 200,
+      "latency_ms": 19103.16252708435,
+      "usage_input_tokens": 156,
+      "cost_computed_usd": 1.404e-05,
+      "error": null
+    },
+    {
+      "ts": "2026-10-06T19:46:01Z",
+      "model": "clef-flash",
+      "n": 9,
+      "ok": true,
+      "http_status": 200,
+      "latency_ms": 19157.76562690735,
+      "usage_input_tokens": 156,
+      "cost_computed_usd": 1.404e-05,
+      "error": null
+    },
+    {
+      "ts": "2026-10-06T19:46:19Z",
+      "model": "clef-flash",
+      "n": 10,
+      "ok": true,
+      "http_status": 200,
+      "latency_ms": 17843.37830543518,
+      "usage_input_tokens": 156,
+      "cost_computed_usd": 1.404e-05,
+      "error": null
+    }
+  ],
+  "ended_utc": "2026-10-06T19:46:19Z",
+  "per_model": {
+    "clef": {
+      "n_calls": 10,
+      "n_ok": 10,
+      "latencies_ms": [
+        18337.14461326599,
+        18624.654054641724,
+        18643.702268600464,
+        18327.380657196045,
+        18824.569702148438,
+        18821.07949256897,
+        18677.46329307556,
+        19031.46481513977,
+        18831.969022750854,
+        18665.892601013184
+      ],
+      "median_ms": 18671.677947044373,
+      "min_ms": 18327.380657196045,
+      "max_ms": 19031.46481513977
+    },
+    "clef-flash": {
+      "n_calls": 10,
+      "n_ok": 10,
+      "latencies_ms": [
+        18850.486040115356,
+        18363.221168518066,
+        19058.321952819824,
+        18102.927446365356,
+        19292.47283935547,
+        18272.013902664185,
+        18503.546953201294,
+        19103.16252708435,
+        19157.76562690735,
+        17843.37830543518
+      ],
+      "median_ms": 18677.016496658325,
+      "min_ms": 17843.37830543518,
+      "max_ms": 19292.47283935547
+    }
+  }
+}
