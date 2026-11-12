@@ -38,10 +38,11 @@ evaluation API only). Sequential single calls from one host, no concurrency.
 | vision | 6 synthetic image gates (gemini, clef-flash; jev has no image input) | 12 |
 | smoke / wiring | 1 text + 1 image case | 5 |
 
-**Request accounting (cap: 150, retries included):** 132 planned + 6 supplementary (clef image rerun
-after a data-URI bug) + 2 supplementary (gemini C06/C07 after a structured-state bug) + 2 latency
-cross-checks + 8 endpoint/auth verification probes = **150**. Provider-side spend from reported usage:
-**≈ $0.0040** (gemini $0.0017, clef-flash $0.0016, jev $0.0007), against a $1 cap. Wall clock: ~50 min.
+**Request accounting (cap: 150, retries included):**
+140 harness attempts plus 10 recorded probes (150 total).
+Estimated spend: **$0.045642**. Computed spend from provider-reported usage: **≈ $0.0040** (gemini
+$0.0017, clef-flash $0.0016, jev $0.0007). These are separate figures; computed spend is not added to
+the estimate. Wall clock: ~50 min.
 
 Two harness defects consumed 19 rejected requests and 8 reruns. Both are fixed in this PR and both
 failures remain visible in `calls.jsonl` next to their successful reruns — the evidence shows the

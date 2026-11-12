@@ -13,6 +13,10 @@
     "jev": 38
   },
   "created_utc": "2026-11-12T11:30:04Z",
+  "external_probes": {
+    "attempts": 10,
+    "spend_usd": 0.0
+  },
   "finished_utc": "2026-11-12T12:07:31Z",
   "limits": {
     "budget_usd": 1.0,
@@ -36,14 +40,14 @@
   "supplementary": [
     {
       "finished_utc": "2026-11-12T12:06:23Z",
-      "note": "rerun after a harness adapter fix (clef image bytes)",
+      "note": "Reran six clef-flash vision cases after fixing image data-URI handling.",
       "only_arms": "clef-flash",
       "only_cases": "ui-error,ui-checkout,dash-above,dash-pair,receipt,photo-blur",
       "requests": 6
     },
     {
       "finished_utc": "2026-11-12T12:07:31Z",
-      "note": "rerun after a harness adapter fix (clef image bytes)",
+      "note": "Reran Gemini C06/C07 after fixing structured-state encoding.",
       "only_arms": "gemini",
       "only_cases": "C06,C07",
       "requests": 2

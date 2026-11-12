@@ -32,9 +32,11 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
+import math
 import sys
 import time
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -53,6 +55,7 @@ ALL_ARMS = ("gemini", "jev", "clef-flash")
 VISION_ARMS = ("gemini", "clef-flash")
 REQUESTS_DEFAULT = 150
 BUDGET_DEFAULT = 1.00
+_ACTIVE_BEFORE_ATTEMPT: Callable[[], str | None] | None = None
 
 
 def utc_now() -> str:
@@ -189,18 +192,81 @@ def estimate_task_usd(t: dict, arm: str) -> float:
     return clef_client.cost_estimate_usd(arm, size)
 
 
+@dataclass(frozen=True)
+class LedgerSeed:
+    metadata: dict | None
+    requests_issued: int
+    attempts_total: int
+    spend_estimate_usd: float
+    external_attempts: int
+    external_spend_usd: float
+
+
+def _ledger_int(source: dict, key: str) -> int:
+    value = source.get(key, 0)
+    if type(value) is not int or value < 0:
+        raise ValueError(f"append ledger field {key} must be a non-negative integer")
+    return value
+
+
+def _ledger_spend(source: dict, key: str) -> float:
+    value = source.get(key, 0.0)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"append ledger field {key} must be a non-negative number")
+    amount = float(value)
+    if not math.isfinite(amount) or amount < 0:
+        raise ValueError(f"append ledger field {key} must be a finite non-negative number")
+    return amount
+
+
+def _load_append_ledger(meta_path: Path, calls_path: Path) -> LedgerSeed:
+    if not meta_path.exists():
+        if calls_path.exists() and calls_path.stat().st_size:
+            raise ValueError("append metadata is missing for an existing calls ledger")
+        return LedgerSeed(None, 0, 0, 0.0, 0, 0.0)
+
+    metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+    if not isinstance(metadata, dict):
+        raise ValueError("append metadata must be a JSON object")
+    external = metadata.get("external_probes", {})
+    if not isinstance(external, dict):
+        raise ValueError("append ledger field external_probes must be an object")
+    supplementary = metadata.get("supplementary", [])
+    if not isinstance(supplementary, list):
+        raise ValueError("append ledger field supplementary must be a list")
+    return LedgerSeed(
+        metadata=metadata,
+        requests_issued=_ledger_int(metadata, "requests_issued"),
+        attempts_total=_ledger_int(metadata, "attempts_total"),
+        spend_estimate_usd=_ledger_spend(metadata, "spend_estimate_usd"),
+        external_attempts=_ledger_int(external, "attempts"),
+        external_spend_usd=_ledger_spend(external, "spend_usd"),
+    )
+
+
 class Guards:
-    def __init__(self, budget: float, max_requests: int, max_seconds: float):
+    def __init__(
+        self,
+        budget: float,
+        max_requests: int,
+        max_seconds: float,
+        *,
+        requests: int = 0,
+        attempts: int = 0,
+        spent: float = 0.0,
+        external_attempts: int = 0,
+    ):
         self.budget = budget
         self.max_requests = max_requests
         self.max_seconds = max_seconds
-        self.spent = 0.0
-        self.requests = 0
-        self.attempts = 0
+        self.spent = spent
+        self.requests = requests
+        self.attempts = attempts
+        self.external_attempts = external_attempts
         self.t0 = time.time()
 
     def check(self, est_usd: float) -> str | None:
-        if self.requests >= self.max_requests:
+        if max(self.requests, self.attempts) + self.external_attempts >= self.max_requests:
             return "request_cap"
         if self.spent + est_usd > self.budget:
             return "budget_cap"
@@ -208,10 +274,16 @@ class Guards:
             return "time_cap"
         return None
 
-    def record(self, est_usd: float, attempts: int) -> None:
+    def start_attempt(self, est_usd: float) -> str | None:
+        reason = self.check(est_usd)
+        if reason:
+            return reason
+        self.attempts += 1
         self.spent += est_usd
+        return None
+
+    def record_request(self) -> None:
         self.requests += 1
-        self.attempts += max(1, attempts)
 
 
 def execute(t: dict) -> dict:
@@ -238,18 +310,24 @@ def execute(t: dict) -> dict:
         "use_case": t.get("use_case"),
         "n_questions": len(questions),
         "image_count": len(t.get("images") or []),
+        "attempts": 0,
     }
     try:
         if arm == "gemini":
-            out = gemini_client.call(t["state"], questions, images=t.get("images"))
+            out = gemini_client.call(
+                t["state"], questions, images=t.get("images"),
+                before_attempt=_ACTIVE_BEFORE_ATTEMPT)
         elif arm == "jev":
-            out = jev_client.call(t["state"], questions)
+            out = jev_client.call(
+                t["state"], questions, before_attempt=_ACTIVE_BEFORE_ATTEMPT)
         else:
             # Clef wants data URIs, not filesystem paths; Gemini reads bytes itself.
             imgs = t.get("images")
             if imgs:
                 imgs = [p if p.startswith("data:") else clef_client.image_to_data_uri(p) for p in imgs]
-            out = clef_client.call(arm, t["state"], questions, images=imgs)
+            out = clef_client.call(
+                arm, t["state"], questions, images=imgs,
+                before_attempt=_ACTIVE_BEFORE_ATTEMPT)
         rec.update({
             "ok": out.get("ok"),
             "http_status": out.get("http_status"),
@@ -261,6 +339,7 @@ def execute(t: dict) -> dict:
             "cost_computed_usd": out.get("cost_computed_usd"),
             "usage_input_tokens": out.get("usage_input_tokens"),
             "error": out.get("error"),
+            "guard_stop_reason": out.get("guard_stop_reason"),
             "answers": out.get("answers"),
             "errors": out.get("errors"),
             "body": out.get("body"),
@@ -272,6 +351,7 @@ def execute(t: dict) -> dict:
 
 
 def main() -> int:
+    global _ACTIVE_BEFORE_ATTEMPT
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=f"run-{utc_compact()}-gemini-eval")
     ap.add_argument("--phases", default="smoke,main")
@@ -281,8 +361,15 @@ def main() -> int:
     ap.add_argument("--only-cases", default="", help="comma-separated case ids (supplementary reruns)")
     ap.add_argument("--only-arms", default="", help="comma-separated arms (supplementary reruns)")
     ap.add_argument("--append", action="store_true", help="append to an existing run's calls.jsonl")
+    ap.add_argument("--note", default="", help="verbatim note for this supplementary append")
+    ap.add_argument("--external-attempts", type=int, default=0)
+    ap.add_argument("--external-spend-usd", type=float, default=0.0)
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
+    if args.external_attempts < 0:
+        ap.error("--external-attempts must be non-negative")
+    if not math.isfinite(args.external_spend_usd) or args.external_spend_usd < 0:
+        ap.error("--external-spend-usd must be finite and non-negative")
 
     phases = [p.strip() for p in args.phases.split(",") if p.strip()]
     tasks: list[dict] = []
@@ -303,22 +390,48 @@ def main() -> int:
     by_arm: dict[str, int] = {}
     for t in tasks:
         by_arm[t["arm"]] = by_arm.get(t["arm"], 0) + 1
-    print(f"planned requests={len(tasks)} by_arm={by_arm} est_cost=${total_est:.4f} "
-          f"caps: requests<={args.max_requests} budget<=${args.budget_usd:.2f}")
+    plan = (f"planned requests={len(tasks)} by_arm={by_arm} est_cost=${total_est:.4f} "
+            f"caps: attempts<={args.max_requests} budget<=${args.budget_usd:.2f}")
     if args.dry_run:
+        print(plan)
         for t, est in zip(tasks, estimates):
             print(f"  {t['phase']:<5} {t['arm']:<10} {t['case_id']:<8} q={len(t['questions']):<2} "
                   f"img={len(t.get('images') or [])} est=${est:.6f}")
         return 0
 
-    if args.max_requests < len(tasks):
-        print(f"refusing: {len(tasks)} planned requests exceed --max-requests {args.max_requests}")
-        return 2
-
     out_dir = RESULTS / args.out
-    out_dir.mkdir(parents=True, exist_ok=True)
     calls_path = out_dir / "calls.jsonl"
     meta_path = out_dir / "meta.json"
+    try:
+        ledger = (
+            _load_append_ledger(meta_path, calls_path)
+            if args.append else LedgerSeed(None, 0, 0, 0.0, 0, 0.0)
+        )
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"refusing: could not load append ledger ({exc})")
+        return 2
+
+    external_attempts = ledger.external_attempts + args.external_attempts
+    external_spend = ledger.external_spend_usd + args.external_spend_usd
+    prior_spend = ledger.spend_estimate_usd + ledger.external_spend_usd + args.external_spend_usd
+    guards = Guards(
+        args.budget_usd,
+        args.max_requests,
+        args.max_seconds,
+        requests=ledger.requests_issued,
+        attempts=ledger.attempts_total,
+        spent=prior_spend,
+        external_attempts=external_attempts,
+    )
+    prior_attempts = max(guards.requests, guards.attempts) + guards.external_attempts
+    minimum_total = prior_attempts + len(tasks)
+    if minimum_total > args.max_requests:
+        print(f"refusing: {prior_attempts} prior attempts + {len(tasks)} planned tasks "
+              f"exceed --max-requests {args.max_requests}")
+        return 2
+
+    print(plan)
+    out_dir.mkdir(parents=True, exist_ok=True)
     meta = {
         "run": args.out,
         "created_utc": utc_now(),
@@ -338,12 +451,12 @@ def main() -> int:
         "battery_sha256": hashlib.sha256((REPO / "cases" / "stress_battery.json").read_bytes()).hexdigest(),
     }
 
-    guards = Guards(args.budget_usd, args.max_requests, args.max_seconds)
     total = len(tasks)
     seq_offset = 0
     if args.append and calls_path.exists():
         with calls_path.open(encoding="utf-8") as existing:
             seq_offset = sum(1 for line in existing if line.strip())
+    starting_requests = guards.requests
     with calls_path.open("a" if args.append else "w", encoding="utf-8") as fh:
         for seq, (t, est) in enumerate(zip(tasks, estimates), start=1 + seq_offset):
             reason = guards.check(est)
@@ -351,36 +464,81 @@ def main() -> int:
                 print(f"STOP at {seq}/{total}: {reason} (spent=${guards.spent:.4f}, "
                       f"requests={guards.requests}, attempts={guards.attempts})")
                 break
-            rec = execute(t)
-            rec["seq"] = seq
-            guards.record(rec.get("cost_estimate_usd") or est, rec.get("attempts") or 1)
-            fh.write(json.dumps(rec, sort_keys=True) + "\n")
-            fh.flush()
-            lat = f"{rec['latency_ms']:.0f}ms" if rec.get("latency_ms") is not None else "n/a"
-            flag = "ok" if rec.get("ok") else f"FAIL({rec.get('http_status') or '?'})"
-            print(f"[{seq:>3}/{total}] {rec['phase']:<5} {rec['arm']:<10} {rec['case_id']:<8} "
-                  f"{flag:<10} {lat:>9} ${(rec.get('cost_computed_usd') or 0):.6f}")
+            attempts_before = guards.attempts
+            stop = {"reason": None}
+
+            def before_attempt() -> str | None:
+                why = guards.start_attempt(est)
+                if why:
+                    stop["reason"] = why
+                return why
+
+            _ACTIVE_BEFORE_ATTEMPT = before_attempt
+            try:
+                rec = execute(t)
+            finally:
+                _ACTIVE_BEFORE_ATTEMPT = None
+
+            reported_attempts = rec.get("attempts", 0)
+            if type(reported_attempts) is not int or reported_attempts < 0:
+                reported_attempts = 0
+            charged_attempts = guards.attempts - attempts_before
+            for _ in range(max(0, reported_attempts - charged_attempts)):
+                why = guards.start_attempt(est)
+                if why:
+                    stop["reason"] = stop["reason"] or why
+                    break
+            charged_attempts = guards.attempts - attempts_before
+            rec["attempts"] = charged_attempts
+            if stop["reason"]:
+                rec["guard_stop_reason"] = stop["reason"]
+            if charged_attempts:
+                guards.record_request()
+
+            if charged_attempts or (rec.get("error") and not stop["reason"]):
+                rec["seq"] = seq
+                fh.write(json.dumps(rec, sort_keys=True) + "\n")
+                fh.flush()
+                lat = f"{rec['latency_ms']:.0f}ms" if rec.get("latency_ms") is not None else "n/a"
+                flag = "ok" if rec.get("ok") else f"FAIL({rec.get('http_status') or '?'})"
+                print(f"[{seq:>3}/{total}] {rec['phase']:<5} {rec['arm']:<10} {rec['case_id']:<8} "
+                      f"{flag:<10} {lat:>9} ${(rec.get('cost_computed_usd') or 0):.6f}")
+            if stop["reason"]:
+                print(f"STOP at {seq}/{total}: {stop['reason']} (spent=${guards.spent:.4f}, "
+                      f"requests={guards.requests}, attempts={guards.attempts})")
+                break
 
     meta["finished_utc"] = utc_now()
     meta["requests_issued"] = guards.requests
     meta["attempts_total"] = guards.attempts
-    meta["spend_estimate_usd"] = round(guards.spent, 6)
-    if args.append and meta_path.exists():
-        previous = json.loads(meta_path.read_text(encoding="utf-8"))
-        merged = dict(previous)
+    meta["spend_estimate_usd"] = round(guards.spent - external_spend, 6)
+    meta["external_probes"] = {
+        "attempts": external_attempts,
+        "spend_usd": round(external_spend, 6),
+    }
+    if args.append and ledger.metadata is not None:
+        merged = dict(ledger.metadata)
         merged["finished_utc"] = meta["finished_utc"]
-        merged["requests_issued"] = int(previous.get("requests_issued", 0)) + guards.requests
-        merged["attempts_total"] = int(previous.get("attempts_total", 0)) + guards.attempts
-        merged["spend_estimate_usd"] = round(
-            float(previous.get("spend_estimate_usd", 0.0)) + guards.spent, 6)
+        merged["requests_issued"] = guards.requests
+        merged["attempts_total"] = guards.attempts
+        merged["spend_estimate_usd"] = round(guards.spent - external_spend, 6)
+        merged["external_probes"] = meta["external_probes"]
         merged.setdefault("supplementary", []).append({
             "finished_utc": meta["finished_utc"],
             "only_cases": args.only_cases,
             "only_arms": args.only_arms,
-            "requests": guards.requests,
-            "note": "rerun after a harness adapter fix (clef image bytes)",
+            "requests": guards.requests - starting_requests,
+            "note": args.note,
         })
         meta = merged
+    elif args.append:
+        meta["supplementary"] = [{
+            "finished_utc": meta["finished_utc"],
+            "only_cases": args.only_cases,
+            "only_arms": args.only_arms,
+            "requests": guards.requests - starting_requests,
+            "note": args.note,
+        }]
     meta_path.write_text(json.dumps(meta, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(f"wrote {calls_path} and {meta_path}")
     return 0
