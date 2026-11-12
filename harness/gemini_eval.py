@@ -481,6 +481,8 @@ def main() -> int:
     ap.add_argument("--max-seconds", type=float, default=6600.0)
     ap.add_argument("--only-cases", default="", help="comma-separated case ids (supplementary reruns)")
     ap.add_argument("--only-arms", default="", help="comma-separated arms (supplementary reruns)")
+    ap.add_argument("--skip-repeats", action="store_true",
+                    help="drop determinism-repeat tasks (repeat_group) from this selection")
     ap.add_argument("--append", action="store_true", help="append to an existing run's calls.jsonl")
     ap.add_argument("--note", default="", help="verbatim note for this supplementary append")
     ap.add_argument("--external-attempts", type=int, default=0)
@@ -505,6 +507,8 @@ def main() -> int:
     if args.only_arms:
         keep = {a.strip() for a in args.only_arms.split(",") if a.strip()}
         tasks = [t for t in tasks if t["arm"] in keep]
+    if args.skip_repeats:
+        tasks = [t for t in tasks if not t.get("repeat_group")]
 
     estimates = [estimate_task_usd(t, t["arm"]) for t in tasks]
     total_est = sum(estimates)
@@ -703,6 +707,7 @@ def main() -> int:
         merged["reservation_lines"] = reservation_line_count
         merged["spend_estimate_usd"] = round(guards.spent - external_spend, 6)
         merged["external_probes"] = meta["external_probes"]
+        merged["limits"] = meta["limits"]
         merged.setdefault("supplementary", []).append({
             "finished_utc": meta["finished_utc"],
             "only_cases": args.only_cases,

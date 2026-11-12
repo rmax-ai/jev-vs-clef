@@ -67,21 +67,23 @@ direnv exec . /usr/bin/python3 harness/vision_demo.py --model clef # same payloa
 
 A bounded third arm: Google's `gemini-decision-1` (Decisions API) run over the same battery against fresh
 Jev and clef-flash calls — A + C groups, one format-sensitivity semantic, 3× repeats, 8-question
-batching, and six vision gates. 132 planned calls, 150 total including verification probes and reruns,
-~$0.004.
+batching, and six vision gates. 132 planned calls, 168 total including verification probes, the
+guardrail continuation and the latency sample, ~$0.0043.
 
-- **Quality**: on the 24 labeled question-level decisions all three arms measured, gemini 20 (83%),
-  jev 23 (96%), clef-flash 19 (79%). All four gemini misses are urgency/severity on the two tickets
-  labeled *not urgent*; route is 9/9. clef-flash fails the same two tickets the same way.
-- **Cost / determinism / multimodal**: $0.000021 per question (jev $0.000009, clef-flash $0.000017);
-  byte-stable across repeats on the measured case; 13/13 vision sanity checks, same as clef-flash; both
-  injection probes held.
-- **Latency**: not measured for this arm, deliberately. The first run's 24.8 s p50 was a host IPv6
-  address-selection defect in the Python client (identical payload: 0.43 s via `curl`, 0.26 s after the
-  fix), so those numbers are client-path artifacts. A clean 10-call sample is ~$0.0003.
+- **Quality**: on the 31 labeled question-level decisions all three arms measured, gemini 26 (84%),
+  jev 30 (97%), clef-flash 25 (81%). Four of the five gemini misses are urgency/severity on the two
+  tickets labeled *not urgent*; route is 9/9. The fifth is `C01`, the borderline `rm -rf` guardrail,
+  where gemini and clef-flash read the regenerable target and jev reads the verb.
+- **Cost / determinism / multimodal**: $0.000020 per question (jev $0.000009, clef-flash $0.000017);
+  byte-identical across the two fixed-shape repeats; 13/13 vision sanity checks, same as clef-flash;
+  both injection probes held, and 6 of 7 labeled guardrails match the author.
+- **Latency**: p50 **246 ms**, p95 354 ms, from a 10-call fixed-shape sample on the fixed client. The
+  first pass's 24.8 s p50 was a host IPv6 address-selection defect in the Python client (identical
+  payload: 0.43 s via `curl`, 0.26 s after the fix), so those rows are excluded as client-path
+  artifacts and stay in `calls.jsonl`.
 
-Verdict: **needs a larger eval** — three named follow-ups (clean latency sample, finishing the guardrail
-group, then a 100+ case labeled set). Full report, limits and reproduce commands:
+Verdict: **needs a larger eval** — the clean latency sample and the guardrail group are done; the
+remaining follow-up is a 100+ case labeled set. Full report, limits and reproduce commands:
 [GEMINI-DECISIONS.md](GEMINI-DECISIONS.md).
 
 ```bash

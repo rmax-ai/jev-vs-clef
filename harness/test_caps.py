@@ -107,6 +107,23 @@ class CapsTests(unittest.TestCase):
             gemini_eval.execute = old_execute
         return rc, issued, output.getvalue()
 
+    def test_append_records_the_effective_limits(self) -> None:
+        seed_ledger(
+            self.results, "limits",
+            requests=10, attempts=10, spend=0.01,
+            external={"attempts": 5, "spend_usd": 0.001},
+        )
+
+        rc, issued, _ = self.run_append(
+            "limits", "--max-requests", "40", "--budget-usd", "2.5")
+
+        self.assertEqual(rc, 0)
+        self.assertEqual(len(issued), 1)
+        meta = json.loads((self.results / "limits" / "meta.json").read_text(encoding="utf-8"))
+        self.assertEqual(meta["limits"]["max_requests"], 40)
+        self.assertEqual(meta["limits"]["budget_usd"], 2.5)
+        self.assertEqual(meta["external_probes"]["attempts"], 5)
+
     def test_append_on_used_up_ledger_refuses_before_issuance(self) -> None:
         seed_ledger(self.results, "used", requests=150, attempts=150, spend=0.05)
 

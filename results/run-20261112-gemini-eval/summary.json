@@ -1,18 +1,18 @@
 {
   "agreement": {
     "clef-flash": {
-      "all_question_match_rate": 0.7917,
-      "cases": 24,
-      "mean_abs_probability_delta": 0.0842,
-      "question_match_rate": 0.8769,
-      "questions": 65
+      "all_question_match_rate": 0.8333,
+      "cases": 30,
+      "mean_abs_probability_delta": 0.0806,
+      "question_match_rate": 0.8873,
+      "questions": 71
     },
     "jev": {
-      "all_question_match_rate": 0.7222,
-      "cases": 18,
-      "mean_abs_probability_delta": 0.0944,
-      "question_match_rate": 0.8627,
-      "questions": 51
+      "all_question_match_rate": 0.7917,
+      "cases": 24,
+      "mean_abs_probability_delta": 0.0893,
+      "question_match_rate": 0.8772,
+      "questions": 57
     }
   },
   "arms": {
@@ -35,6 +35,7 @@
         "n": 31
       },
       "latency_ms": {
+        "excluded_artifact_rows": 0,
         "max": 21757.82084465027,
         "min": 16802.964210510254,
         "n": 43,
@@ -45,33 +46,34 @@
       "requests": 43
     },
     "gemini": {
-      "cost_computed_usd": 0.001685,
-      "cost_estimate_usd": 0.021783,
-      "cost_per_call_usd": 4.814e-05,
-      "cost_per_question_usd": 2.055e-05,
+      "cost_computed_usd": 0.001796,
+      "cost_estimate_usd": 0.021805,
+      "cost_per_call_usd": 4.275e-05,
+      "cost_per_question_usd": 2.017e-05,
       "errors": {
-        "http_400": 12
+        "http_400": 5
       },
-      "input_tokens": 16848,
+      "input_tokens": 17955,
       "labeled": {
-        "accuracy": 0.8333,
-        "brier": 0.1576,
+        "accuracy": 0.8387,
+        "brier": 0.1171,
         "by_type": {
           "choice": "9/9",
-          "noul": "7/9",
+          "noul": "13/16",
           "score": "4/6"
         },
-        "correct": 20,
-        "n": 24
+        "correct": 26,
+        "n": 31
       },
       "latency_ms": {
-        "max": 25520.09606361389,
-        "min": 22975.188493728638,
-        "n": 35,
-        "p50": 24818.775177001953,
-        "p95": 25208.670377731323
+        "excluded_artifact_rows": 35,
+        "max": 283.7235927581787,
+        "min": 182.50012397766113,
+        "n": 7,
+        "p50": 258.5597038269043,
+        "p95": 283.7235927581787
       },
-      "ok": 35,
+      "ok": 42,
       "requests": 47
     },
     "jev": {
@@ -93,6 +95,7 @@
         "n": 31
       },
       "latency_ms": {
+        "excluded_artifact_rows": 0,
         "max": 386.1410617828369,
         "min": 211.5182876586914,
         "n": 37,
@@ -294,26 +297,156 @@
       }
     }
   },
+  "latency_sample": {
+    "calls_failed": 0,
+    "calls_made": 10,
+    "calls_ok": 10,
+    "calls_requested": 10,
+    "latency_ms": {
+      "max": 354.3269634246826,
+      "mean": 249.0,
+      "min": 173.46954345703125,
+      "p50": 246.11234664916992,
+      "p95": 354.3269634246826
+    },
+    "model": "gemini-decision-1",
+    "recorded_utc": "2026-11-12T23:14:36Z",
+    "run": "run-20261112-gemini-eval",
+    "samples": [
+      {
+        "cost_computed_usd": 2.61e-05,
+        "error": null,
+        "http_status": 200,
+        "index": 1,
+        "latency_ms": 293.6825752258301,
+        "ok": true,
+        "request_bytes": 798,
+        "usage_input_tokens": 261,
+        "utc": "2026-11-12T23:14:34Z"
+      },
+      {
+        "cost_computed_usd": 2.61e-05,
+        "error": null,
+        "http_status": 200,
+        "index": 2,
+        "latency_ms": 288.73276710510254,
+        "ok": true,
+        "request_bytes": 798,
+        "usage_input_tokens": 261,
+        "utc": "2026-11-12T23:14:34Z"
+      },
+      {
+        "cost_computed_usd": 2.61e-05,
+        "error": null,
+        "http_status": 200,
+        "index": 3,
+        "latency_ms": 300.10294914245605,
+        "ok": true,
+        "request_bytes": 798,
+        "usage_input_tokens": 261,
+        "utc": "2026-11-12T23:14:35Z"
+      },
+      {
+        "cost_computed_usd": 2.61e-05,
+        "error": null,
+        "http_status": 200,
+        "index": 4,
+        "latency_ms": 252.2108554840088,
+        "ok": true,
+        "request_bytes": 798,
+        "usage_input_tokens": 261,
+        "utc": "2026-11-12T23:14:35Z"
+      },
+      {
+        "cost_computed_usd": 2.61e-05,
+        "error": null,
+        "http_status": 200,
+        "index": 5,
+        "latency_ms": 354.3269634246826,
+        "ok": true,
+        "request_bytes": 798,
+        "usage_input_tokens": 261,
+        "utc": "2026-11-12T23:14:35Z"
+      },
+      {
+        "cost_computed_usd": 2.61e-05,
+        "error": null,
+        "http_status": 200,
+        "index": 6,
+        "latency_ms": 173.46954345703125,
+        "ok": true,
+        "request_bytes": 798,
+        "usage_input_tokens": 261,
+        "utc": "2026-11-12T23:14:35Z"
+      },
+      {
+        "cost_computed_usd": 2.61e-05,
+        "error": null,
+        "http_status": 200,
+        "index": 7,
+        "latency_ms": 246.11234664916992,
+        "ok": true,
+        "request_bytes": 798,
+        "usage_input_tokens": 261,
+        "utc": "2026-11-12T23:14:36Z"
+      },
+      {
+        "cost_computed_usd": 2.61e-05,
+        "error": null,
+        "http_status": 200,
+        "index": 8,
+        "latency_ms": 184.05914306640625,
+        "ok": true,
+        "request_bytes": 798,
+        "usage_input_tokens": 261,
+        "utc": "2026-11-12T23:14:36Z"
+      },
+      {
+        "cost_computed_usd": 2.61e-05,
+        "error": null,
+        "http_status": 200,
+        "index": 9,
+        "latency_ms": 196.93899154663086,
+        "ok": true,
+        "request_bytes": 798,
+        "usage_input_tokens": 261,
+        "utc": "2026-11-12T23:14:36Z"
+      },
+      {
+        "cost_computed_usd": 2.61e-05,
+        "error": null,
+        "http_status": 200,
+        "index": 10,
+        "latency_ms": 200.3011703491211,
+        "ok": true,
+        "request_bytes": 798,
+        "usage_input_tokens": 261,
+        "utc": "2026-11-12T23:14:36Z"
+      }
+    ],
+    "shape": "one support ticket, route + urgent, no images",
+    "spend_computed_usd": 0.000261
+  },
   "limits": [],
   "quality_common_subset": {
     "arms": {
       "clef-flash": {
-        "accuracy": 0.7917,
-        "cases": 9,
-        "correct": 19,
-        "n": 24
+        "accuracy": 0.8065,
+        "cases": 16,
+        "correct": 25,
+        "n": 31
       },
       "gemini": {
-        "accuracy": 0.8333,
-        "cases": 9,
-        "correct": 20,
-        "n": 24
+        "accuracy": 0.8387,
+        "cases": 16,
+        "correct": 26,
+        "n": 31
       },
       "jev": {
-        "accuracy": 0.9583,
-        "cases": 9,
-        "correct": 23,
-        "n": 24
+        "accuracy": 0.9677,
+        "cases": 16,
+        "correct": 30,
+        "n": 31
       }
     },
     "cases": [
@@ -325,8 +458,37 @@
       "A09",
       "A11",
       "A12",
-      "A14"
+      "A14",
+      "C01",
+      "C02",
+      "C03",
+      "C04",
+      "C05",
+      "C08",
+      "C09"
     ]
+  },
+  "repeat_stability": {
+    "A01": {
+      "attempts": 2,
+      "distinct_answer_payloads": 1
+    },
+    "C01": {
+      "attempts": 2,
+      "distinct_answer_payloads": 1
+    },
+    "C06": {
+      "attempts": 2,
+      "distinct_answer_payloads": 1
+    },
+    "F": {
+      "attempts": 9,
+      "distinct_answer_payloads": 9
+    },
+    "ui-error": {
+      "attempts": 2,
+      "distinct_answer_payloads": 1
+    }
   },
   "requests_main": 127,
   "requests_total": 132,

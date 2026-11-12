@@ -5,7 +5,7 @@
     "jev",
     "clef-flash"
   ],
-  "attempts_total": 140,
+  "attempts_total": 148,
   "battery_sha256": "fdcc8a762718848705a3db1b3130f941196fc981e8fdd74b3d52b575440cbe20",
   "by_arm": {
     "clef-flash": 45,
@@ -14,13 +14,13 @@
   },
   "created_utc": "2026-11-12T11:30:04Z",
   "external_probes": {
-    "attempts": 10,
-    "spend_usd": 0.0
+    "attempts": 20,
+    "spend_usd": 0.000261
   },
-  "finished_utc": "2026-11-12T12:07:31Z",
+  "finished_utc": "2026-11-12T23:15:16Z",
   "limits": {
     "budget_usd": 1.0,
-    "max_requests": 150,
+    "max_requests": 168,
     "max_seconds": 6600.0
   },
   "model": "gemini-decision-1",
@@ -34,9 +34,10 @@
     "gemini": 0.1,
     "jev": 0.041999999999999996
   },
-  "requests_issued": 140,
+  "requests_issued": 148,
+  "reservation_lines": 8,
   "run": "run-20261112-gemini-eval",
-  "spend_estimate_usd": 0.045642,
+  "spend_estimate_usd": 0.045851,
   "supplementary": [
     {
       "finished_utc": "2026-11-12T12:06:23Z",
@@ -51,6 +52,27 @@
       "only_arms": "gemini",
       "only_cases": "C06,C07",
       "requests": 2
+    },
+    {
+      "finished_utc": "2026-11-12T23:14:42Z",
+      "note": "authorized continuation: 7 missing gemini guardrail cases (C01-C05, C08, C09)",
+      "only_arms": "gemini",
+      "only_cases": "C01,C02,C03,C04,C05,C08,C09",
+      "requests": 7
+    },
+    {
+      "finished_utc": "2026-11-12T23:14:45Z",
+      "note": "authorized continuation: C01 repeat for gemini determinism",
+      "only_arms": "gemini",
+      "only_cases": "C01",
+      "requests": 1
+    },
+    {
+      "finished_utc": "2026-11-12T23:15:16Z",
+      "note": "record the cumulative ceiling (168) that governed the authorized continuation; no new calls",
+      "only_arms": "gemini",
+      "only_cases": "__none__",
+      "requests": 0
     }
   ]
 }
