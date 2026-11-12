@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import io
 import json
+import subprocess
 import sys
 import tempfile
+import textwrap
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -42,6 +44,7 @@ def seed_ledger(
     attempts: int,
     spend: float,
     external: dict | None = None,
+    reservation_lines: int = 0,
 ) -> None:
     run_dir = root / out
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -51,6 +54,7 @@ def seed_ledger(
         "attempts_total": attempts,
         "spend_estimate_usd": spend,
         "supplementary": [],
+        "reservation_lines": reservation_lines,
     }
     if external is not None:
         metadata["external_probes"] = external
@@ -69,7 +73,13 @@ class CapsTests(unittest.TestCase):
         gemini_eval.RESULTS = self.original_results
         self.tempdir.cleanup()
 
-    def run_append(self, out: str, *extra: str, cases: str = "C06") -> tuple[int, list, str]:
+    def run_append(
+        self,
+        out: str,
+        *extra: str,
+        cases: str = "C06",
+        append: bool = True,
+    ) -> tuple[int, list, str]:
         issued: list[dict] = []
 
         def fake_execute(task: dict) -> dict:
@@ -83,9 +93,10 @@ class CapsTests(unittest.TestCase):
             "--phases", "main",
             "--only-cases", cases,
             "--only-arms", "gemini",
-            "--append",
-            *extra,
         ]
+        if append:
+            sys.argv.append("--append")
+        sys.argv.extend(extra)
         gemini_eval.execute = fake_execute
         output = io.StringIO()
         try:
@@ -210,6 +221,230 @@ class CapsTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             gemini_eval._load_append_ledger(
                 meta_path, self.results / "invalid" / "calls.jsonl")
+
+    def test_append_charges_unreconciled_attempts_and_distinct_sequences(self) -> None:
+        seed_ledger(
+            self.results,
+            "reconcile",
+            requests=7,
+            attempts=8,
+            spend=0.1,
+            reservation_lines=1,
+        )
+        journal_path = self.results / "reconcile" / "reservations.jsonl"
+        journal_path.write_text(
+            '{"seq": 8, "attempt_index": 1}\n'
+            '{"seq": 9, "attempt_index": 1}\n'
+            '{"seq": 9, "attempt_index": 2}\n',
+            encoding="utf-8",
+        )
+
+        ledger = gemini_eval._load_append_ledger(
+            self.results / "reconcile" / "meta.json",
+            self.results / "reconcile" / "calls.jsonl",
+            journal_path,
+        )
+
+        self.assertEqual(ledger.journal_lines, 3)
+        self.assertEqual(ledger.unreconciled_attempts, 2)
+        self.assertEqual(ledger.unreconciled_requests, 1)
+
+    def test_reservation_journal_rejects_invalid_records(self) -> None:
+        seed_ledger(self.results, "invalid-journal", requests=1, attempts=1, spend=0.01)
+        run_dir = self.results / "invalid-journal"
+        journal_path = run_dir / "reservations.jsonl"
+        invalid_lines = (
+            "not-json\n",
+            "[]\n",
+            '{"attempt_index": 1}\n',
+            '{"seq": true, "attempt_index": 1}\n',
+            '{"seq": 1, "attempt_index": 1, "extra": "value"}\n',
+        )
+
+        for line in invalid_lines:
+            with self.subTest(line=line):
+                journal_path.write_text(line, encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    gemini_eval._load_append_ledger(
+                        run_dir / "meta.json",
+                        run_dir / "calls.jsonl",
+                        journal_path,
+                    )
+
+    def test_retry_attempts_are_each_reserved(self) -> None:
+        responses = [
+            (503, {"error": "temporary"}, 1.0),
+            (200, {"answers": {}}, 1.0),
+        ]
+        provider_calls: list[int] = []
+
+        def fake_post(*_args) -> tuple[int, dict, float]:
+            provider_calls.append(1)
+            return responses[len(provider_calls) - 1]
+
+        old_argv = sys.argv
+        sys.argv = [
+            "gemini_eval.py",
+            "--out", "retry-journal",
+            "--phases", "main",
+            "--only-cases", "C06",
+            "--only-arms", "gemini",
+            "--append",
+            "--max-requests", "5",
+        ]
+        try:
+            with (
+                mock.patch.object(gemini_decisions_client, "load_api_key",
+                                  return_value="offline-placeholder"),
+                mock.patch.object(gemini_decisions_client, "_post", side_effect=fake_post),
+                mock.patch.object(gemini_decisions_client.time, "sleep", return_value=None),
+                redirect_stdout(io.StringIO()),
+            ):
+                rc = gemini_eval.main()
+        finally:
+            sys.argv = old_argv
+
+        run_dir = self.results / "retry-journal"
+        reservations = [
+            json.loads(line)
+            for line in (run_dir / "reservations.jsonl").read_text(encoding="utf-8").splitlines()
+        ]
+        call = json.loads((run_dir / "calls.jsonl").read_text(encoding="utf-8"))
+        metadata = json.loads((run_dir / "meta.json").read_text(encoding="utf-8"))
+        self.assertEqual(rc, 0)
+        self.assertEqual(len(provider_calls), 2)
+        self.assertEqual(
+            [(record["seq"], record["attempt_index"]) for record in reservations],
+            [(1, 1), (1, 2)],
+        )
+        self.assertEqual(call["attempts"], 2)
+        self.assertEqual(metadata["requests_issued"], 1)
+        self.assertEqual(metadata["attempts_total"], 2)
+        self.assertEqual(metadata["reservation_lines"], 2)
+
+    def test_subprocess_kill_preserves_reservation_for_append(self) -> None:
+        seed_ledger(self.results, "killed", requests=149, attempts=149, spend=0.04)
+        marker = self.results / "provider-called"
+        child = textwrap.dedent(
+            """
+            import importlib.util, os, pathlib, sys
+            repo = pathlib.Path(sys.argv[1])
+            root = pathlib.Path(sys.argv[2])
+            marker = pathlib.Path(sys.argv[3])
+            spec = importlib.util.spec_from_file_location(
+                "gemini_eval_kill", repo / "harness" / "gemini_eval.py")
+            m = importlib.util.module_from_spec(spec)
+            sys.modules["gemini_eval_kill"] = m
+            spec.loader.exec_module(m)
+            m.RESULTS = root
+            m.gemini_client.load_api_key = lambda: "offline-placeholder"
+
+            def fake_post(*_args):
+                marker.write_text("provider call completed", encoding="utf-8")
+                return 200, {"answers": {}}, 1.0
+
+            m.gemini_client._post = fake_post
+            execute = m.execute
+
+            def kill_after_provider(task):
+                execute(task)
+                os._exit(9)
+
+            m.execute = kill_after_provider
+            sys.argv = ["gemini_eval.py", "--out", "killed", "--phases", "main",
+                        "--only-cases", "C06", "--only-arms", "gemini", "--append"]
+            m.main()
+            """
+        )
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                child,
+                str(gemini_eval.REPO),
+                str(self.results),
+                str(marker),
+            ],
+            cwd=str(gemini_eval.REPO),
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        journal_path = self.results / "killed" / "reservations.jsonl"
+        raw_journal = journal_path.read_bytes()
+        rows = raw_journal.decode("utf-8").splitlines()
+        self.assertEqual(result.returncode, 9, result.stdout + result.stderr)
+        self.assertEqual(marker.read_text(encoding="utf-8"), "provider call completed")
+        self.assertTrue(raw_journal.endswith(b"\n"))
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(json.loads(rows[0]), {"seq": 1, "attempt_index": 1})
+
+        rc, issued, output = self.run_append("killed")
+
+        self.assertEqual(rc, 2)
+        self.assertEqual(issued, [])
+        self.assertIn("refusing:", output)
+
+        rc, issued, _ = self.run_append("killed", "--max-requests", "151")
+
+        metadata = json.loads((self.results / "killed" / "meta.json").read_text())
+        records = [
+            json.loads(line)
+            for line in journal_path.read_text(encoding="utf-8").splitlines()
+        ]
+        self.assertEqual(rc, 0)
+        self.assertEqual(len(issued), 1)
+        self.assertEqual(
+            [(record["seq"], record["attempt_index"]) for record in records],
+            [(1, 1), (1, 2)],
+        )
+        self.assertEqual(metadata["requests_issued"], 150)
+        self.assertEqual(metadata["attempts_total"], 151)
+        self.assertEqual(metadata["reservation_lines"], 2)
+
+    def test_out_reuse_without_append_refuses_and_preserves_evidence(self) -> None:
+        seed_ledger(self.results, "reuse", requests=5, attempts=5, spend=0.01)
+        reuse_dir = self.results / "reuse"
+        (reuse_dir / "calls.jsonl").write_text('{"seq": 1, "ok": true}\n', encoding="utf-8")
+        (reuse_dir / "reservations.jsonl").write_text(
+            '{"seq": 1, "attempt_index": 1}\n',
+            encoding="utf-8",
+        )
+        before = {path.name: path.read_bytes() for path in reuse_dir.iterdir() if path.is_file()}
+
+        rc, issued, output = self.run_append("reuse", append=False)
+
+        after = {path.name: path.read_bytes() for path in reuse_dir.iterdir() if path.is_file()}
+        self.assertEqual(rc, 2)
+        self.assertEqual(issued, [])
+        self.assertEqual(len(output.strip().splitlines()), 1)
+        self.assertEqual(before, after)
+
+        orphan_dir = self.results / "orphan"
+        orphan_dir.mkdir()
+        (orphan_dir / "calls.jsonl").write_text("", encoding="utf-8")
+        (orphan_dir / "reservations.jsonl").write_text(
+            '{"seq": 1, "attempt_index": 1}\n',
+            encoding="utf-8",
+        )
+        orphan_before = {
+            path.name: path.read_bytes()
+            for path in orphan_dir.iterdir()
+            if path.is_file()
+        }
+
+        orphan_rc, orphan_issued, orphan_output = self.run_append("orphan", append=False)
+
+        orphan_after = {
+            path.name: path.read_bytes()
+            for path in orphan_dir.iterdir()
+            if path.is_file()
+        }
+        self.assertEqual(orphan_rc, 2)
+        self.assertEqual(orphan_issued, [])
+        self.assertEqual(len(orphan_output.strip().splitlines()), 1)
+        self.assertEqual(orphan_before, orphan_after)
 
 
 if __name__ == "__main__":

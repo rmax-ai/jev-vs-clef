@@ -33,6 +33,7 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import sys
 import time
 from collections.abc import Callable
@@ -193,6 +194,12 @@ def estimate_task_usd(t: dict, arm: str) -> float:
 
 
 @dataclass(frozen=True)
+class Reservation:
+    seq: int
+    attempt_index: int
+
+
+@dataclass(frozen=True)
 class LedgerSeed:
     metadata: dict | None
     requests_issued: int
@@ -200,6 +207,10 @@ class LedgerSeed:
     spend_estimate_usd: float
     external_attempts: int
     external_spend_usd: float
+    journal_lines: int
+    unreconciled_attempts: int
+    unreconciled_requests: int
+    reservations: tuple[Reservation, ...]
 
 
 def _ledger_int(source: dict, key: str) -> int:
@@ -219,11 +230,82 @@ def _ledger_spend(source: dict, key: str) -> float:
     return amount
 
 
-def _load_append_ledger(meta_path: Path, calls_path: Path) -> LedgerSeed:
+def _load_reservations(path: Path) -> list[Reservation]:
+    """Parse the persisted JSONL boundary into strictly typed reservations."""
+    if not path.exists():
+        return []
+
+    reservations: list[Reservation] = []
+    try:
+        with path.open(encoding="utf-8") as fh:
+            for line_number, line in enumerate(fh, start=1):
+                if not line.strip():
+                    raise ValueError(f"reservation journal line {line_number} is empty")
+                try:
+                    raw = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    raise ValueError(
+                        f"reservation journal line {line_number} is not valid JSON"
+                    ) from exc
+                if not isinstance(raw, dict) or set(raw) != {"seq", "attempt_index"}:
+                    raise ValueError(
+                        f"reservation journal line {line_number} must contain seq and attempt_index"
+                    )
+                seq = raw["seq"]
+                attempt_index = raw["attempt_index"]
+                if type(seq) is not int or seq < 1:
+                    raise ValueError(
+                        f"reservation journal line {line_number} seq must be a positive integer"
+                    )
+                if type(attempt_index) is not int or attempt_index < 1:
+                    raise ValueError(
+                        f"reservation journal line {line_number} attempt_index must be a positive integer"
+                    )
+                reservations.append(Reservation(seq, attempt_index))
+    except UnicodeDecodeError as exc:
+        raise ValueError("reservation journal must be UTF-8") from exc
+    return reservations
+
+
+def _append_reservation(path: Path, seq: int, attempt_index: int) -> None:
+    """Durably append one reservation without replacing existing evidence."""
+    line = json.dumps(
+        {"seq": seq, "attempt_index": attempt_index},
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8") + b"\n"
+    with path.open("a+b") as fh:
+        fh.seek(0, os.SEEK_END)
+        if fh.tell():
+            fh.seek(-1, os.SEEK_END)
+            if fh.read(1) != b"\n":
+                fh.seek(0, os.SEEK_END)
+                fh.write(b"\n")
+        fh.seek(0, os.SEEK_END)
+        if fh.write(line) != len(line):
+            raise OSError("short write to reservation journal")
+        fh.flush()
+        os.fsync(fh.fileno())
+
+
+def _load_append_ledger(
+    meta_path: Path,
+    calls_path: Path,
+    reservations_path: Path | None = None,
+) -> LedgerSeed:
+    if reservations_path is None:
+        reservations_path = meta_path.with_name("reservations.jsonl")
+    reservations = _load_reservations(reservations_path)
+    journal_lines = len(reservations)
+
     if not meta_path.exists():
         if calls_path.exists() and calls_path.stat().st_size:
             raise ValueError("append metadata is missing for an existing calls ledger")
-        return LedgerSeed(None, 0, 0, 0.0, 0, 0.0)
+        return LedgerSeed(
+            None, 0, 0, 0.0, 0, 0.0,
+            journal_lines, journal_lines, len({item.seq for item in reservations}),
+            tuple(reservations),
+        )
 
     metadata = json.loads(meta_path.read_text(encoding="utf-8"))
     if not isinstance(metadata, dict):
@@ -234,6 +316,8 @@ def _load_append_ledger(meta_path: Path, calls_path: Path) -> LedgerSeed:
     supplementary = metadata.get("supplementary", [])
     if not isinstance(supplementary, list):
         raise ValueError("append ledger field supplementary must be a list")
+    reconciled_lines = _ledger_int(metadata, "reservation_lines")
+    unreconciled = reservations[reconciled_lines:] if journal_lines > reconciled_lines else []
     return LedgerSeed(
         metadata=metadata,
         requests_issued=_ledger_int(metadata, "requests_issued"),
@@ -241,6 +325,10 @@ def _load_append_ledger(meta_path: Path, calls_path: Path) -> LedgerSeed:
         spend_estimate_usd=_ledger_spend(metadata, "spend_estimate_usd"),
         external_attempts=_ledger_int(external, "attempts"),
         external_spend_usd=_ledger_spend(external, "spend_usd"),
+        journal_lines=journal_lines,
+        unreconciled_attempts=max(0, journal_lines - reconciled_lines),
+        unreconciled_requests=len({item.seq for item in unreconciled}),
+        reservations=tuple(reservations),
     )
 
 
@@ -274,10 +362,17 @@ class Guards:
             return "time_cap"
         return None
 
-    def start_attempt(self, est_usd: float) -> str | None:
+    def start_attempt(
+        self,
+        est_usd: float,
+        *,
+        before_issue: Callable[[], None] | None = None,
+    ) -> str | None:
         reason = self.check(est_usd)
         if reason:
             return reason
+        if before_issue is not None:
+            before_issue()
         self.attempts += 1
         self.spent += est_usd
         return None
@@ -402,10 +497,23 @@ def main() -> int:
     out_dir = RESULTS / args.out
     calls_path = out_dir / "calls.jsonl"
     meta_path = out_dir / "meta.json"
+    reservations_path = out_dir / "reservations.jsonl"
+    if not args.append:
+        try:
+            has_calls = calls_path.exists() and calls_path.stat().st_size > 0
+            has_reservations = (
+                reservations_path.exists() and reservations_path.stat().st_size > 0
+            )
+            if meta_path.exists() or has_calls or has_reservations:
+                print("refusing: --out already contains run evidence; use --append")
+                return 2
+        except OSError as exc:
+            print(f"refusing: could not inspect existing output ({exc})")
+            return 2
     try:
         ledger = (
-            _load_append_ledger(meta_path, calls_path)
-            if args.append else LedgerSeed(None, 0, 0, 0.0, 0, 0.0)
+            _load_append_ledger(meta_path, calls_path, reservations_path)
+            if args.append else LedgerSeed(None, 0, 0, 0.0, 0, 0.0, 0, 0, 0, ())
         )
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"refusing: could not load append ledger ({exc})")
@@ -418,8 +526,8 @@ def main() -> int:
         args.budget_usd,
         args.max_requests,
         args.max_seconds,
-        requests=ledger.requests_issued,
-        attempts=ledger.attempts_total,
+        requests=ledger.requests_issued + ledger.unreconciled_requests,
+        attempts=ledger.attempts_total + ledger.unreconciled_attempts,
         spent=prior_spend,
         external_attempts=external_attempts,
     )
@@ -432,6 +540,24 @@ def main() -> int:
 
     print(plan)
     out_dir.mkdir(parents=True, exist_ok=True)
+    reservation_line_count = ledger.journal_lines
+    accounted_request_sequences = {item.seq for item in ledger.reservations}
+    reservation_attempt_indices: dict[int, int] = {}
+    for reservation in ledger.reservations:
+        reservation_attempt_indices[reservation.seq] = max(
+            reservation_attempt_indices.get(reservation.seq, 0),
+            reservation.attempt_index,
+        )
+
+    def persist_reservation(seq: int, attempt_index: int) -> None:
+        nonlocal reservation_line_count
+        _append_reservation(reservations_path, seq, attempt_index)
+        reservation_line_count += 1
+        reservation_attempt_indices[seq] = max(
+            reservation_attempt_indices.get(seq, 0),
+            attempt_index,
+        )
+
     meta = {
         "run": args.out,
         "created_utc": utc_now(),
@@ -466,11 +592,23 @@ def main() -> int:
                 break
             attempts_before = guards.attempts
             stop = {"reason": None}
+            attempt_index = reservation_attempt_indices.get(seq, 0)
 
             def before_attempt() -> str | None:
-                why = guards.start_attempt(est)
+                nonlocal attempt_index
+                next_attempt_index = attempt_index + 1
+                try:
+                    why = guards.start_attempt(
+                        est,
+                        before_issue=lambda: persist_reservation(seq, next_attempt_index),
+                    )
+                except OSError:
+                    stop["reason"] = "reservation_journal"
+                    raise
                 if why:
                     stop["reason"] = why
+                else:
+                    attempt_index = next_attempt_index
                 return why
 
             _ACTIVE_BEFORE_ATTEMPT = before_attempt
@@ -484,16 +622,26 @@ def main() -> int:
                 reported_attempts = 0
             charged_attempts = guards.attempts - attempts_before
             for _ in range(max(0, reported_attempts - charged_attempts)):
-                why = guards.start_attempt(est)
+                next_attempt_index = attempt_index + 1
+                try:
+                    why = guards.start_attempt(
+                        est,
+                        before_issue=lambda: persist_reservation(seq, next_attempt_index),
+                    )
+                except OSError:
+                    stop["reason"] = stop["reason"] or "reservation_journal"
+                    break
                 if why:
                     stop["reason"] = stop["reason"] or why
                     break
+                attempt_index = next_attempt_index
             charged_attempts = guards.attempts - attempts_before
             rec["attempts"] = charged_attempts
             if stop["reason"]:
                 rec["guard_stop_reason"] = stop["reason"]
-            if charged_attempts:
+            if charged_attempts and seq not in accounted_request_sequences:
                 guards.record_request()
+                accounted_request_sequences.add(seq)
 
             if charged_attempts or (rec.get("error") and not stop["reason"]):
                 rec["seq"] = seq
@@ -521,6 +669,7 @@ def main() -> int:
         merged["finished_utc"] = meta["finished_utc"]
         merged["requests_issued"] = guards.requests
         merged["attempts_total"] = guards.attempts
+        merged["reservation_lines"] = reservation_line_count
         merged["spend_estimate_usd"] = round(guards.spent - external_spend, 6)
         merged["external_probes"] = meta["external_probes"]
         merged.setdefault("supplementary", []).append({
@@ -539,6 +688,7 @@ def main() -> int:
             "requests": guards.requests - starting_requests,
             "note": args.note,
         }]
+    meta["reservation_lines"] = reservation_line_count
     meta_path.write_text(json.dumps(meta, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(f"wrote {calls_path} and {meta_path}")
     return 0
