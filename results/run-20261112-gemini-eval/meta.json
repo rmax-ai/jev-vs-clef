@@ -1,0 +1,52 @@
+{
+  "api_version": "v1beta",
+  "arms": [
+    "gemini",
+    "jev",
+    "clef-flash"
+  ],
+  "attempts_total": 140,
+  "battery_sha256": "fdcc8a762718848705a3db1b3130f941196fc981e8fdd74b3d52b575440cbe20",
+  "by_arm": {
+    "clef-flash": 45,
+    "gemini": 49,
+    "jev": 38
+  },
+  "created_utc": "2026-11-12T11:30:04Z",
+  "finished_utc": "2026-11-12T12:07:31Z",
+  "limits": {
+    "budget_usd": 1.0,
+    "max_requests": 150,
+    "max_seconds": 6600.0
+  },
+  "model": "gemini-decision-1",
+  "phases": [
+    "smoke",
+    "main"
+  ],
+  "planned_requests": 132,
+  "pricing_usd_per_mtok_input": {
+    "clef-flash": 0.09,
+    "gemini": 0.1,
+    "jev": 0.041999999999999996
+  },
+  "requests_issued": 140,
+  "run": "run-20261112-gemini-eval",
+  "spend_estimate_usd": 0.045642,
+  "supplementary": [
+    {
+      "finished_utc": "2026-11-12T12:06:23Z",
+      "note": "rerun after a harness adapter fix (clef image bytes)",
+      "only_arms": "clef-flash",
+      "only_cases": "ui-error,ui-checkout,dash-above,dash-pair,receipt,photo-blur",
+      "requests": 6
+    },
+    {
+      "finished_utc": "2026-11-12T12:07:31Z",
+      "note": "rerun after a harness adapter fix (clef image bytes)",
+      "only_arms": "gemini",
+      "only_cases": "C06,C07",
+      "requests": 2
+    }
+  ]
+}

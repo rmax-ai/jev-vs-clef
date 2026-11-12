@@ -63,6 +63,34 @@ direnv exec . /usr/bin/python3 harness/vision_demo.py             # all cases, c
 direnv exec . /usr/bin/python3 harness/vision_demo.py --model clef # same payloads on the 27B arm
 ```
 
+## Gemini Decisions API spot check (2026-11-12)
+
+A bounded third arm: Google's `gemini-decision-1` (Decisions API) run over the same battery against fresh
+Jev and clef-flash calls — A + C groups, one format-sensitivity semantic, 3× repeats, 8-question
+batching, and six vision gates. 132 planned calls, 150 total including verification probes and reruns,
+~$0.004.
+
+- **Quality**: on the 24 labeled question-level decisions all three arms measured, gemini 20 (83%),
+  jev 23 (96%), clef-flash 19 (79%). All four gemini misses are urgency/severity on the two tickets
+  labeled *not urgent*; route is 9/9. clef-flash fails the same two tickets the same way.
+- **Cost / determinism / multimodal**: $0.000021 per question (jev $0.000009, clef-flash $0.000017);
+  byte-stable across repeats on the measured case; 13/13 vision sanity checks, same as clef-flash; both
+  injection probes held.
+- **Latency**: not measured for this arm, deliberately. The first run's 24.8 s p50 was a host IPv6
+  address-selection defect in the Python client (identical payload: 0.43 s via `curl`, 0.26 s after the
+  fix), so those numbers are client-path artifacts. A clean 10-call sample is ~$0.0003.
+
+Verdict: **needs a larger eval** — three named follow-ups (clean latency sample, finishing the guardrail
+group, then a 100+ case labeled set). Full report, limits and reproduce commands:
+[GEMINI-DECISIONS.md](GEMINI-DECISIONS.md).
+
+```bash
+export GEMINI_API_KEY          # export the variable your secret store already holds
+python3 harness/gemini_eval.py --dry-run
+python3 harness/gemini_eval.py --out run-<label>
+python3 harness/gemini_report.py results/run-<label>
+```
+
 ## Reproduce
 
 ```bash
@@ -88,11 +116,15 @@ harness/jev_client.py      Jev gateway HTTP client (env-var key; pinned evaluati
 harness/stress.py          runner — smoke / probe / main, spend + time guards, JSONL evidence
 harness/report.py          analysis — agreement, stability, determinism, batching, edges → report.md
 harness/vision_demo.py     clef-flash vision demo — 6 production-shaped gates + measured run
+harness/gemini_decisions_client.py  Gemini Decisions REST client (stdlib; `prefer_ipv4`; usage-based cost)
+harness/gemini_eval.py     bounded three-arm runner (A+C, B, E, F, vision; request + spend guards)
+harness/gemini_report.py   analysis for the Gemini run — dedupes superseded attempts, recomputes metrics
 harness/make_vision_fixtures.py  regenerates assets/vision_demo/*.png (Pillow; draw-only, no external assets)
 assets/vision_demo/        synthetic fixtures for the vision demo
 results/                   committed runs: calls.jsonl + report.md + summary.json (+ provenance for the rerun)
 SPEC.md                    test design, metrics definitions, wire notes, safety notes
 VISION-DEMO.md             vision demo — use cases, measured transcript, cost model, limits
+GEMINI-DECISIONS.md        Gemini Decisions API spot check — method, measurements, limits, recommendation
 ```
 
 ## Caveats — read before quoting numbers

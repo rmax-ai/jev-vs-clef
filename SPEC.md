@@ -8,6 +8,7 @@ Compare three decision-model arms on the same bounded-decision workloads — the
 
 | arm | provider / path | model | price (input) | context | modality |
 |---|---|---|---|---|---|
+| `gemini` | Gemini API — Decisions endpoint (REST, `v1beta/decisions`) | `gemini-decision-1` | $0.10/M tokens | 256k | text + images/audio/video/PDF |
 | `jev` | Vercel AI Gateway (evaluation-model API, plain HTTP) | `typesafe-ai/jev` | $0.042/M tokens | 32k | text |
 | `clef` | Cloudflare Workers AI (REST) | `@cf/cloudflare/clef` (27B) | $0.24/M tokens | 64k | text + images |
 | `clef-flash` | Cloudflare Workers AI (REST) | `@cf/cloudflare/clef-flash` (9B) | $0.09/M tokens | 64k | text + images |
@@ -19,6 +20,7 @@ Clef follows the System One API that Jev uses: same `{state, questions}` concept
 - **Identical:** state bytes, question ids, instructions, criteria, thresholds. The runner records `state_sha256` per call so payload parity is auditable.
 - **Mapped:** the yes/no question type keyword — one naming seam, two hosted spellings. The System One wire type is `noul` (TypeSafe's native API and docs; Cloudflare's clef docs, which define it as "a yes/no question"; TypeSafe states plainly the wire type is not `boolean`). The Vercel AI Gateway evaluation API — the Jev path this harness uses — spells the same type `boolean` and rejects `noul` server-side (`HTTP 400`, `Invalid discriminator value. Expected 'choice' | 'score' | 'boolean'`). clef symmetrically rejects `boolean` (`HTTP 400`; Cloudflare's validator garbles it as `required properties at '/' are 'model,state,questions'`). The harness maps `noul` → `boolean` for the jev arm only (see `map_questions_for_arm` in `harness/stress.py`). Both directions re-verified live 2026-10-04. This is the only byte-level difference between arms.
 - **Arm-specific:** `images` (Clef extension; Jev has no vision), and the endpoint used per provider (both plain HTTP REST).
+- **Gemini Decisions (`gemini-decision-1`)** is the third wire. It is System One-shaped but not identical: `POST {base}/v1beta/decisions` with `{"model", "input", "questions"}`, auth via `x-goog-api-key`; yes/no keeps the native `noul` keyword (no `boolean` mapping); `input` is a shared content list and images are inline base64 (`{"type": "image", "data": "...", "mime_type": "image/png"}`) rather than data URIs; answers carry `confidence` and score answers carry a `legend`; output tokens are always 0 and unbilled. The harness keeps `state` + `questions` byte-identical across arms and maps only the yes/no keyword.
 
 ## Battery structure
 
@@ -67,6 +69,17 @@ direnv exec . /usr/bin/python3 harness/report.py results/run-<label>      # -> r
 ```
 
 Requirements: Python ≥ 3.10 (stdlib only) and the three environment variables above (`.envrc.example` is a copy-paste template; `.envrc` + `direnv` are recommended). The vision case needs `assets/shapes.png`.
+
+Gemini spot check (bounded, 2026-11-12): `harness/gemini_eval.py` reuses this battery for a small three-arm run (A+C, one B semantic, E repeats, F batching, six vision gates) and adds one environment variable, `GEMINI_API_KEY`:
+
+```bash
+python3 harness/gemini_eval.py --dry-run                                  # enumerate tasks + guards
+python3 harness/gemini_eval.py --out run-<label> --phases smoke           # 5 live calls (wiring)
+python3 harness/gemini_eval.py --out run-<label>                          # 132 live calls, caps enforced
+python3 harness/gemini_report.py results/run-<label>                      # -> report.md + summary.json
+```
+
+Its caps are a hard request count (default 150, retries included) and a conservative spend estimate (default $1.00), both checked before each call. Methodology and limits: `GEMINI-DECISIONS.md`.
 
 Concurrency: the probe phase measures 4-way parallel latency and derives the main-phase concurrency (≤8). Clef calls measured ~17–19 s each from our test environment in both committed runs — the launch-window run (2026-10-03) and the rerun (executed 2026-10-06) — while a lighter operator probe on 2026-10-04 observed sub-second medians that neither full run reproduced. Treat hosted latency as time- and environment-dependent; re-measure from the intended deployment.
 

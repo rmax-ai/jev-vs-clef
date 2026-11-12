@@ -1,0 +1,3 @@
+[mdirenv: loading ~/.hermes/worktrees/jev-vs-clef/issue-316/.envrc
+post-fix client call: ok=True http=200 latency=262 ms attempts=1 tokens=327 cost=$0.00003270
+answers: {"urgent": 0.989685859063335, "route": "technical", "severity": 2.9631559478523637}
