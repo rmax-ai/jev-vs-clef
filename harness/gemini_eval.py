@@ -197,6 +197,7 @@ def estimate_task_usd(t: dict, arm: str) -> float:
 class Reservation:
     seq: int
     attempt_index: int
+    est_usd: float
 
 
 @dataclass(frozen=True)
@@ -211,6 +212,7 @@ class LedgerSeed:
     unreconciled_attempts: int
     unreconciled_requests: int
     reservations: tuple[Reservation, ...]
+    unreconciled_spend_usd: float = 0.0
 
 
 def _ledger_int(source: dict, key: str) -> int:
@@ -227,6 +229,19 @@ def _ledger_spend(source: dict, key: str) -> float:
     amount = float(value)
     if not math.isfinite(amount) or amount < 0:
         raise ValueError(f"append ledger field {key} must be a finite non-negative number")
+    return amount
+
+
+def _reservation_estimate(value: object, context: str) -> float:
+    message = f"{context} must be a finite non-negative number"
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(message)
+    try:
+        amount = float(value)
+    except OverflowError as exc:
+        raise ValueError(message) from exc
+    if not math.isfinite(amount) or amount < 0:
+        raise ValueError(message)
     return amount
 
 
@@ -247,9 +262,12 @@ def _load_reservations(path: Path) -> list[Reservation]:
                     raise ValueError(
                         f"reservation journal line {line_number} is not valid JSON"
                     ) from exc
-                if not isinstance(raw, dict) or set(raw) != {"seq", "attempt_index"}:
+                if not isinstance(raw, dict) or set(raw) != {
+                    "seq", "attempt_index", "est_usd",
+                }:
                     raise ValueError(
-                        f"reservation journal line {line_number} must contain seq and attempt_index"
+                        f"reservation journal line {line_number} must contain "
+                        "seq, attempt_index and est_usd"
                     )
                 seq = raw["seq"]
                 attempt_index = raw["attempt_index"]
@@ -261,18 +279,24 @@ def _load_reservations(path: Path) -> list[Reservation]:
                     raise ValueError(
                         f"reservation journal line {line_number} attempt_index must be a positive integer"
                     )
-                reservations.append(Reservation(seq, attempt_index))
+                est_usd = _reservation_estimate(
+                    raw["est_usd"],
+                    f"reservation journal line {line_number} est_usd",
+                )
+                reservations.append(Reservation(seq, attempt_index, est_usd))
     except UnicodeDecodeError as exc:
         raise ValueError("reservation journal must be UTF-8") from exc
     return reservations
 
 
-def _append_reservation(path: Path, seq: int, attempt_index: int) -> None:
+def _append_reservation(path: Path, seq: int, attempt_index: int, est_usd: float) -> None:
     """Durably append one reservation without replacing existing evidence."""
+    est_usd = _reservation_estimate(est_usd, "reservation est_usd")
     line = json.dumps(
-        {"seq": seq, "attempt_index": attempt_index},
+        {"seq": seq, "attempt_index": attempt_index, "est_usd": est_usd},
         sort_keys=True,
         separators=(",", ":"),
+        allow_nan=False,
     ).encode("utf-8") + b"\n"
     with path.open("a+b") as fh:
         fh.seek(0, os.SEEK_END)
@@ -305,6 +329,7 @@ def _load_append_ledger(
             None, 0, 0, 0.0, 0, 0.0,
             journal_lines, journal_lines, len({item.seq for item in reservations}),
             tuple(reservations),
+            sum(item.est_usd for item in reservations),
         )
 
     metadata = json.loads(meta_path.read_text(encoding="utf-8"))
@@ -329,6 +354,7 @@ def _load_append_ledger(
         unreconciled_attempts=max(0, journal_lines - reconciled_lines),
         unreconciled_requests=len({item.seq for item in unreconciled}),
         reservations=tuple(reservations),
+        unreconciled_spend_usd=sum(item.est_usd for item in unreconciled),
     )
 
 
@@ -521,7 +547,12 @@ def main() -> int:
 
     external_attempts = ledger.external_attempts + args.external_attempts
     external_spend = ledger.external_spend_usd + args.external_spend_usd
-    prior_spend = ledger.spend_estimate_usd + ledger.external_spend_usd + args.external_spend_usd
+    prior_spend = (
+        ledger.spend_estimate_usd
+        + ledger.unreconciled_spend_usd
+        + ledger.external_spend_usd
+        + args.external_spend_usd
+    )
     guards = Guards(
         args.budget_usd,
         args.max_requests,
@@ -551,7 +582,7 @@ def main() -> int:
 
     def persist_reservation(seq: int, attempt_index: int) -> None:
         nonlocal reservation_line_count
-        _append_reservation(reservations_path, seq, attempt_index)
+        _append_reservation(reservations_path, seq, attempt_index, est)
         reservation_line_count += 1
         reservation_attempt_indices[seq] = max(
             reservation_attempt_indices.get(seq, 0),

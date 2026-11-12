@@ -233,9 +233,9 @@ class CapsTests(unittest.TestCase):
         )
         journal_path = self.results / "reconcile" / "reservations.jsonl"
         journal_path.write_text(
-            '{"seq": 8, "attempt_index": 1}\n'
-            '{"seq": 9, "attempt_index": 1}\n'
-            '{"seq": 9, "attempt_index": 2}\n',
+            '{"seq": 8, "attempt_index": 1, "est_usd": 0.01}\n'
+            '{"seq": 9, "attempt_index": 1, "est_usd": 0.02}\n'
+            '{"seq": 9, "attempt_index": 2, "est_usd": 0.03}\n',
             encoding="utf-8",
         )
 
@@ -248,6 +248,7 @@ class CapsTests(unittest.TestCase):
         self.assertEqual(ledger.journal_lines, 3)
         self.assertEqual(ledger.unreconciled_attempts, 2)
         self.assertEqual(ledger.unreconciled_requests, 1)
+        self.assertAlmostEqual(ledger.unreconciled_spend_usd, 0.05)
 
     def test_reservation_journal_rejects_invalid_records(self) -> None:
         seed_ledger(self.results, "invalid-journal", requests=1, attempts=1, spend=0.01)
@@ -256,9 +257,17 @@ class CapsTests(unittest.TestCase):
         invalid_lines = (
             "not-json\n",
             "[]\n",
-            '{"attempt_index": 1}\n',
-            '{"seq": true, "attempt_index": 1}\n',
-            '{"seq": 1, "attempt_index": 1, "extra": "value"}\n',
+            '{"attempt_index": 1, "est_usd": 0.01}\n',
+            '{"seq": true, "attempt_index": 1, "est_usd": 0.01}\n',
+            '{"seq": 1, "attempt_index": 1, "est_usd": 0.01, "extra": "value"}\n',
+            '{"seq": 1, "attempt_index": 1}\n',
+            '{"seq": 1, "attempt_index": 1, "est_usd": true}\n',
+            '{"seq": 1, "attempt_index": 1, "est_usd": "0.01"}\n',
+            '{"seq": 1, "attempt_index": 1, "est_usd": null}\n',
+            '{"seq": 1, "attempt_index": 1, "est_usd": -0.01}\n',
+            '{"seq": 1, "attempt_index": 1, "est_usd": NaN}\n',
+            '{"seq": 1, "attempt_index": 1, "est_usd": Infinity}\n',
+            '{"seq": 1, "attempt_index": 1, "est_usd": 1e999}\n',
         )
 
         for line in invalid_lines:
@@ -272,6 +281,11 @@ class CapsTests(unittest.TestCase):
                     )
 
     def test_retry_attempts_are_each_reserved(self) -> None:
+        task = next(
+            t for t in gemini_eval.build_main_tasks()
+            if t["case_id"] == "C06" and t["arm"] == "gemini"
+        )
+        estimate = gemini_eval.estimate_task_usd(task, "gemini")
         responses = [
             (503, {"error": "temporary"}, 1.0),
             (200, {"answers": {}}, 1.0),
@@ -317,6 +331,9 @@ class CapsTests(unittest.TestCase):
             [(record["seq"], record["attempt_index"]) for record in reservations],
             [(1, 1), (1, 2)],
         )
+        for record in reservations:
+            self.assertEqual(set(record), {"seq", "attempt_index", "est_usd"})
+            self.assertAlmostEqual(record["est_usd"], estimate)
         self.assertEqual(call["attempts"], 2)
         self.assertEqual(metadata["requests_issued"], 1)
         self.assertEqual(metadata["attempts_total"], 2)
@@ -378,7 +395,15 @@ class CapsTests(unittest.TestCase):
         self.assertEqual(marker.read_text(encoding="utf-8"), "provider call completed")
         self.assertTrue(raw_journal.endswith(b"\n"))
         self.assertEqual(len(rows), 1)
-        self.assertEqual(json.loads(rows[0]), {"seq": 1, "attempt_index": 1})
+        reservation = json.loads(rows[0])
+        estimate = gemini_eval.estimate_task_usd(
+            next(t for t in gemini_eval.build_main_tasks()
+                 if t["case_id"] == "C06" and t["arm"] == "gemini"),
+            "gemini",
+        )
+        self.assertEqual(set(reservation), {"seq", "attempt_index", "est_usd"})
+        self.assertEqual((reservation["seq"], reservation["attempt_index"]), (1, 1))
+        self.assertAlmostEqual(reservation["est_usd"], estimate)
 
         rc, issued, output = self.run_append("killed")
 
@@ -403,12 +428,115 @@ class CapsTests(unittest.TestCase):
         self.assertEqual(metadata["attempts_total"], 151)
         self.assertEqual(metadata["reservation_lines"], 2)
 
+    def test_killed_budget_reservation_blocks_restart(self) -> None:
+        task = next(
+            t for t in gemini_eval.build_main_tasks()
+            if t["case_id"] == "C06" and t["arm"] == "gemini"
+        )
+        estimate = gemini_eval.estimate_task_usd(task, "gemini")
+        self.assertGreater(estimate, 0)
+        budget = round(estimate * 1.5, 12)
+        seed_ledger(
+            self.results, "budget-killed",
+            requests=0, attempts=0, spend=0.0,
+        )
+
+        child = textwrap.dedent(
+            """
+            import importlib.util, os, pathlib, sys
+            repo = pathlib.Path(sys.argv[1])
+            root = pathlib.Path(sys.argv[2])
+            spec = importlib.util.spec_from_file_location(
+                "gemini_eval_budget_kill", repo / "harness" / "gemini_eval.py")
+            m = importlib.util.module_from_spec(spec)
+            sys.modules["gemini_eval_budget_kill"] = m
+            spec.loader.exec_module(m)
+            m.RESULTS = root
+
+            def kill_after_reservation(task):
+                m._ACTIVE_BEFORE_ATTEMPT()
+                os._exit(9)
+
+            m.execute = kill_after_reservation
+            sys.argv = ["gemini_eval.py", "--out", "budget-killed", "--phases", "main",
+                        "--only-cases", "C06", "--only-arms", "gemini", "--append",
+                        "--budget-usd", sys.argv[3]]
+            m.main()
+            """
+        )
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                child,
+                str(gemini_eval.REPO),
+                str(self.results),
+                repr(budget),
+            ],
+            cwd=str(gemini_eval.REPO),
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        journal_path = self.results / "budget-killed" / "reservations.jsonl"
+        rows = [
+            json.loads(line)
+            for line in journal_path.read_text(encoding="utf-8").splitlines()
+        ]
+
+        self.assertEqual(result.returncode, 9, result.stdout + result.stderr)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(set(rows[0]), {"seq", "attempt_index", "est_usd"})
+        self.assertAlmostEqual(rows[0]["est_usd"], estimate)
+
+        rc, issued, output = self.run_append(
+            "budget-killed", "--budget-usd", repr(budget)
+        )
+
+        self.assertEqual(rc, 0)
+        self.assertEqual(issued, [])
+        self.assertIn("budget_cap", output)
+
+    def test_clean_run_append_does_not_double_charge_reconciled_spend(self) -> None:
+        task = next(
+            t for t in gemini_eval.build_main_tasks()
+            if t["case_id"] == "C06" and t["arm"] == "gemini"
+        )
+        estimate = gemini_eval.estimate_task_usd(task, "gemini")
+        wide_budget = round(estimate * 2.5, 12)
+
+        first_rc, first_issued, _ = self.run_append(
+            "reconciled-spend", "--budget-usd", "10.0", append=False
+        )
+        second_rc, second_issued, _ = self.run_append(
+            "reconciled-spend", "--budget-usd", repr(wide_budget)
+        )
+        journal_path = self.results / "reconciled-spend" / "reservations.jsonl"
+        rows = [
+            json.loads(line)
+            for line in journal_path.read_text(encoding="utf-8").splitlines()
+        ]
+        metadata = json.loads(
+            (self.results / "reconciled-spend" / "meta.json").read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(first_rc, 0)
+        self.assertEqual(len(first_issued), 1)
+        self.assertEqual(second_rc, 0)
+        self.assertEqual(len(second_issued), 1)
+        self.assertEqual(len(rows), 2)
+        self.assertTrue(all(set(row) == {"seq", "attempt_index", "est_usd"} for row in rows))
+        for row in rows:
+            self.assertAlmostEqual(row["est_usd"], estimate)
+        self.assertEqual(metadata["reservation_lines"], 2)
+        self.assertEqual(metadata["attempts_total"], 2)
+
     def test_out_reuse_without_append_refuses_and_preserves_evidence(self) -> None:
         seed_ledger(self.results, "reuse", requests=5, attempts=5, spend=0.01)
         reuse_dir = self.results / "reuse"
         (reuse_dir / "calls.jsonl").write_text('{"seq": 1, "ok": true}\n', encoding="utf-8")
         (reuse_dir / "reservations.jsonl").write_text(
-            '{"seq": 1, "attempt_index": 1}\n',
+            '{"seq": 1, "attempt_index": 1, "est_usd": 0.01}\n',
             encoding="utf-8",
         )
         before = {path.name: path.read_bytes() for path in reuse_dir.iterdir() if path.is_file()}
@@ -425,7 +553,7 @@ class CapsTests(unittest.TestCase):
         orphan_dir.mkdir()
         (orphan_dir / "calls.jsonl").write_text("", encoding="utf-8")
         (orphan_dir / "reservations.jsonl").write_text(
-            '{"seq": 1, "attempt_index": 1}\n',
+            '{"seq": 1, "attempt_index": 1, "est_usd": 0.01}\n',
             encoding="utf-8",
         )
         orphan_before = {
