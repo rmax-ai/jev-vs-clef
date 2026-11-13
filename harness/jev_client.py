@@ -33,6 +33,7 @@ import random
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 
 DEFAULT_BASE_URL = "https://ai-gateway.vercel.sh/v4/ai/evaluation-model"
 DEFAULT_MODEL = "typesafe-ai/jev"
@@ -107,6 +108,7 @@ def call(
     timeout: float = 60.0,
     attempts: int = 3,
     retry_base: float = 1.5,
+    before_attempt: Callable[[], str | None] | None = None,
 ) -> dict:
     """POST one decision request to Jev. Returns a result dict (never raises on HTTP errors).
 
@@ -143,7 +145,13 @@ def call(
     }
 
     for i in range(max(1, attempts)):
-        result["attempts"] = i + 1
+        blocked = before_attempt() if before_attempt else None
+        if blocked:
+            result["guard_stop_reason"] = blocked
+            if result["error"] is None:
+                result["error"] = f"request stopped by {blocked}"
+            break
+        result["attempts"] += 1
         status, body, dt, gateway_id = _post(base_url, key, payload, timeout)
         result["http_status"] = status
         result["latency_ms"] = dt

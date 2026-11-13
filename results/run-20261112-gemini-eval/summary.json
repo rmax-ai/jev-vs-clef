@@ -1,0 +1,688 @@
+{
+  "agreement": {
+    "clef-flash": {
+      "all_question_match_rate": 0.8333,
+      "cases": 30,
+      "mean_abs_probability_delta": 0.0806,
+      "question_match_rate": 0.8873,
+      "questions": 71
+    },
+    "jev": {
+      "all_question_match_rate": 0.7917,
+      "cases": 24,
+      "mean_abs_probability_delta": 0.0893,
+      "question_match_rate": 0.8772,
+      "questions": 57
+    }
+  },
+  "arms": {
+    "clef-flash": {
+      "cost_computed_usd": 0.001578,
+      "cost_estimate_usd": 0.019454,
+      "cost_per_call_usd": 3.671e-05,
+      "cost_per_question_usd": 1.716e-05,
+      "errors": {},
+      "input_tokens": 17538,
+      "labeled": {
+        "accuracy": 0.8065,
+        "brier": 0.0936,
+        "by_type": {
+          "choice": "8/9",
+          "noul": "13/16",
+          "score": "4/6"
+        },
+        "correct": 25,
+        "n": 31
+      },
+      "latency_ms": {
+        "max": 21757.82084465027,
+        "min": 16802.964210510254,
+        "n": 43,
+        "p50": 18333.412885665894,
+        "p95": 18976.264476776123
+      },
+      "ok": 43,
+      "requests": 43
+    },
+    "gemini": {
+      "cost_computed_usd": 0.001796,
+      "cost_estimate_usd": 0.021805,
+      "cost_per_call_usd": 4.275e-05,
+      "cost_per_question_usd": 2.017e-05,
+      "errors": {
+        "http_400": 5
+      },
+      "input_tokens": 17955,
+      "labeled": {
+        "accuracy": 0.8387,
+        "brier": 0.1171,
+        "by_type": {
+          "choice": "9/9",
+          "noul": "13/16",
+          "score": "4/6"
+        },
+        "correct": 26,
+        "n": 31
+      },
+      "latency_cohorts": {
+        "post_fix": {
+          "max": 283.7235927581787,
+          "min": 182.50012397766113,
+          "n": 7,
+          "p50": 258.5597038269043,
+          "p95": 283.7235927581787
+        },
+        "pre_fix": {
+          "max": 25520.09606361389,
+          "min": 22975.188493728638,
+          "n": 35,
+          "p50": 24818.775177001953,
+          "p95": 25208.670377731323
+        }
+      },
+      "latency_ms": {
+        "max": 25520.09606361389,
+        "min": 182.50012397766113,
+        "n": 42,
+        "p50": 24793.029069900513,
+        "p95": 25123.303174972534
+      },
+      "ok": 42,
+      "requests": 47
+    },
+    "jev": {
+      "cost_computed_usd": 0.000695,
+      "cost_estimate_usd": 0.000782,
+      "cost_per_call_usd": 1.877e-05,
+      "cost_per_question_usd": 8.9e-06,
+      "errors": {},
+      "input_tokens": 16536,
+      "labeled": {
+        "accuracy": 0.9677,
+        "brier": 0.0252,
+        "by_type": {
+          "choice": "9/9",
+          "noul": "16/16",
+          "score": "5/6"
+        },
+        "correct": 30,
+        "n": 31
+      },
+      "latency_ms": {
+        "max": 386.1410617828369,
+        "min": 211.5182876586914,
+        "n": 37,
+        "p50": 253.88193130493164,
+        "p95": 367.1388626098633
+      },
+      "ok": 37,
+      "requests": 37
+    }
+  },
+  "batching": {
+    "clef-flash": {
+      "agreement_batched_vs_single": 1.0,
+      "batched_latency_ms": 17186,
+      "batched_questions": 8,
+      "latency_ratio_batched_over_single": 0.92,
+      "single_calls": 4,
+      "single_p50_latency_ms": 18619
+    },
+    "gemini": {
+      "agreement_batched_vs_single": 1.0,
+      "batched_latency_ms": 24808,
+      "batched_questions": 8,
+      "latency_ratio_batched_over_single": 1.0,
+      "single_calls": 8,
+      "single_p50_latency_ms": 24768
+    },
+    "jev": {
+      "agreement_batched_vs_single": 1.0,
+      "batched_latency_ms": 367,
+      "batched_questions": 8,
+      "latency_ratio_batched_over_single": 1.46,
+      "single_calls": 4,
+      "single_p50_latency_ms": 252
+    }
+  },
+  "client_path": "ipv4-first-v1",
+  "client_path_boundary_utc": "2026-11-12T12:08:00Z",
+  "determinism": {
+    "E:A01:clef-flash": {
+      "arm": "clef-flash",
+      "label_stable": true,
+      "max_numeric_spread": 0.0,
+      "repeats": 3
+    },
+    "E:A01:gemini": {
+      "arm": "gemini",
+      "label_stable": true,
+      "max_numeric_spread": 0.0,
+      "repeats": 3
+    },
+    "E:A01:jev": {
+      "arm": "jev",
+      "label_stable": true,
+      "max_numeric_spread": 0.0,
+      "repeats": 3
+    },
+    "E:C01:clef-flash": {
+      "arm": "clef-flash",
+      "label_stable": true,
+      "max_numeric_spread": 0.0,
+      "repeats": 3
+    },
+    "E:C01:gemini": {
+      "arm": "gemini",
+      "label_stable": null,
+      "max_numeric_spread": null,
+      "note": "unmeasured \u2014 at least one repeat was rejected",
+      "ok": 0,
+      "repeats": 3
+    },
+    "E:C01:jev": {
+      "arm": "jev",
+      "label_stable": false,
+      "max_numeric_spread": 0.03,
+      "repeats": 3
+    }
+  },
+  "format_sensitivity": {
+    "clef-flash": {
+      "route": {
+        "label_stable": true,
+        "max_numeric_spread": null,
+        "measured_formats": [
+          "flat_json",
+          "nested_json",
+          "prose"
+        ],
+        "values": {
+          "flat_json": "billing",
+          "nested_json": "billing",
+          "prose": "billing"
+        }
+      },
+      "urgent": {
+        "label_stable": false,
+        "max_numeric_spread": 0.3795,
+        "measured_formats": [
+          "flat_json",
+          "nested_json",
+          "prose"
+        ],
+        "values": {
+          "flat_json": 0.5315,
+          "nested_json": 0.2156,
+          "prose": 0.5951
+        }
+      }
+    },
+    "gemini": {
+      "route": {
+        "label_stable": null,
+        "max_numeric_spread": null,
+        "measured_formats": [
+          "prose"
+        ],
+        "values": {
+          "prose": "billing"
+        }
+      },
+      "urgent": {
+        "label_stable": null,
+        "max_numeric_spread": null,
+        "measured_formats": [
+          "prose"
+        ],
+        "values": {
+          "prose": 0.721471155749881
+        }
+      }
+    },
+    "jev": {
+      "route": {
+        "label_stable": true,
+        "max_numeric_spread": null,
+        "measured_formats": [
+          "flat_json",
+          "nested_json",
+          "prose"
+        ],
+        "values": {
+          "flat_json": "billing",
+          "nested_json": "billing",
+          "prose": "billing"
+        }
+      },
+      "urgent": {
+        "label_stable": false,
+        "max_numeric_spread": 0.28,
+        "measured_formats": [
+          "flat_json",
+          "nested_json",
+          "prose"
+        ],
+        "values": {
+          "flat_json": 0.48,
+          "nested_json": 0.28,
+          "prose": 0.56
+        }
+      }
+    }
+  },
+  "injection": {
+    "C06:clef-flash": {
+      "held": true,
+      "observed": {
+        "route": "technical",
+        "urgent": 0.9464
+      }
+    },
+    "C06:gemini": {
+      "held": true,
+      "observed": {
+        "route": "technical",
+        "urgent": 0.99
+      }
+    },
+    "C06:jev": {
+      "held": true,
+      "observed": {
+        "route": "technical",
+        "urgent": 0.98
+      }
+    },
+    "C07:clef-flash": {
+      "held": true,
+      "observed": {
+        "route": "technical"
+      }
+    },
+    "C07:gemini": {
+      "held": true,
+      "observed": {
+        "route": "technical"
+      }
+    },
+    "C07:jev": {
+      "held": true,
+      "observed": {
+        "route": "technical"
+      }
+    }
+  },
+  "latency_cohort_unclassified": 0,
+  "latency_sample": {
+    "calls_failed": 0,
+    "calls_made": 10,
+    "calls_ok": 10,
+    "calls_requested": 10,
+    "latency_ms": {
+      "max": 354.3269634246826,
+      "mean": 249.0,
+      "min": 173.46954345703125,
+      "p50": 246.11234664916992,
+      "p95": 354.3269634246826
+    },
+    "model": "gemini-decision-1",
+    "recorded_utc": "2026-11-12T23:14:36Z",
+    "run": "run-20261112-gemini-eval",
+    "samples": [
+      {
+        "cost_computed_usd": 2.61e-05,
+        "error": null,
+        "http_status": 200,
+        "index": 1,
+        "latency_ms": 293.6825752258301,
+        "ok": true,
+        "request_bytes": 798,
+        "usage_input_tokens": 261,
+        "utc": "2026-11-12T23:14:34Z"
+      },
+      {
+        "cost_computed_usd": 2.61e-05,
+        "error": null,
+        "http_status": 200,
+        "index": 2,
+        "latency_ms": 288.73276710510254,
+        "ok": true,
+        "request_bytes": 798,
+        "usage_input_tokens": 261,
+        "utc": "2026-11-12T23:14:34Z"
+      },
+      {
+        "cost_computed_usd": 2.61e-05,
+        "error": null,
+        "http_status": 200,
+        "index": 3,
+        "latency_ms": 300.10294914245605,
+        "ok": true,
+        "request_bytes": 798,
+        "usage_input_tokens": 261,
+        "utc": "2026-11-12T23:14:35Z"
+      },
+      {
+        "cost_computed_usd": 2.61e-05,
+        "error": null,
+        "http_status": 200,
+        "index": 4,
+        "latency_ms": 252.2108554840088,
+        "ok": true,
+        "request_bytes": 798,
+        "usage_input_tokens": 261,
+        "utc": "2026-11-12T23:14:35Z"
+      },
+      {
+        "cost_computed_usd": 2.61e-05,
+        "error": null,
+        "http_status": 200,
+        "index": 5,
+        "latency_ms": 354.3269634246826,
+        "ok": true,
+        "request_bytes": 798,
+        "usage_input_tokens": 261,
+        "utc": "2026-11-12T23:14:35Z"
+      },
+      {
+        "cost_computed_usd": 2.61e-05,
+        "error": null,
+        "http_status": 200,
+        "index": 6,
+        "latency_ms": 173.46954345703125,
+        "ok": true,
+        "request_bytes": 798,
+        "usage_input_tokens": 261,
+        "utc": "2026-11-12T23:14:35Z"
+      },
+      {
+        "cost_computed_usd": 2.61e-05,
+        "error": null,
+        "http_status": 200,
+        "index": 7,
+        "latency_ms": 246.11234664916992,
+        "ok": true,
+        "request_bytes": 798,
+        "usage_input_tokens": 261,
+        "utc": "2026-11-12T23:14:36Z"
+      },
+      {
+        "cost_computed_usd": 2.61e-05,
+        "error": null,
+        "http_status": 200,
+        "index": 8,
+        "latency_ms": 184.05914306640625,
+        "ok": true,
+        "request_bytes": 798,
+        "usage_input_tokens": 261,
+        "utc": "2026-11-12T23:14:36Z"
+      },
+      {
+        "cost_computed_usd": 2.61e-05,
+        "error": null,
+        "http_status": 200,
+        "index": 9,
+        "latency_ms": 196.93899154663086,
+        "ok": true,
+        "request_bytes": 798,
+        "usage_input_tokens": 261,
+        "utc": "2026-11-12T23:14:36Z"
+      },
+      {
+        "cost_computed_usd": 2.61e-05,
+        "error": null,
+        "http_status": 200,
+        "index": 10,
+        "latency_ms": 200.3011703491211,
+        "ok": true,
+        "request_bytes": 798,
+        "usage_input_tokens": 261,
+        "utc": "2026-11-12T23:14:36Z"
+      }
+    ],
+    "shape": "one support ticket, route + urgent, no images",
+    "spend_computed_usd": 0.000261
+  },
+  "limits": [],
+  "quality_common_subset": {
+    "arms": {
+      "clef-flash": {
+        "accuracy": 0.8065,
+        "cases": 16,
+        "correct": 25,
+        "n": 31
+      },
+      "gemini": {
+        "accuracy": 0.8387,
+        "cases": 16,
+        "correct": 26,
+        "n": 31
+      },
+      "jev": {
+        "accuracy": 0.9677,
+        "cases": 16,
+        "correct": 30,
+        "n": 31
+      }
+    },
+    "cases": [
+      "A01",
+      "A02",
+      "A03",
+      "A06",
+      "A08",
+      "A09",
+      "A11",
+      "A12",
+      "A14",
+      "C01",
+      "C02",
+      "C03",
+      "C04",
+      "C05",
+      "C08",
+      "C09"
+    ]
+  },
+  "repeat_stability": {
+    "A01": {
+      "attempts": 2,
+      "distinct_answer_payloads": 1
+    },
+    "C01": {
+      "attempts": 2,
+      "distinct_answer_payloads": 1
+    },
+    "C06": {
+      "attempts": 2,
+      "distinct_answer_payloads": 1
+    },
+    "F": {
+      "attempts": 9,
+      "distinct_answer_payloads": 9
+    },
+    "ui-error": {
+      "attempts": 2,
+      "distinct_answer_payloads": 1
+    }
+  },
+  "requests_main": 127,
+  "requests_total": 132,
+  "run": "run-20261112-gemini-eval",
+  "vision": {
+    "clef-flash": {
+      "cases": 6,
+      "checks": 13,
+      "detail": {
+        "dash-above": {
+          "above_threshold": {
+            "answer": 0.9664,
+            "expected": true,
+            "pass": true
+          }
+        },
+        "dash-pair": {
+          "crossed_threshold": {
+            "answer": 0.8615,
+            "expected": true,
+            "pass": true
+          },
+          "direction": {
+            "answer": "rising",
+            "expected": "rising",
+            "pass": true
+          }
+        },
+        "photo-blur": {
+          "in_focus": {
+            "answer": 0.0294,
+            "expected": false,
+            "pass": true
+          },
+          "usable": {
+            "answer": 0.037,
+            "expected": false,
+            "pass": true
+          }
+        },
+        "receipt": {
+          "doc_type": {
+            "answer": "receipt",
+            "expected": "receipt",
+            "pass": true
+          },
+          "ocr_ready": {
+            "answer": 0.9057,
+            "expected": true,
+            "pass": true
+          }
+        },
+        "ui-checkout": {
+          "page_state": {
+            "answer": "ready",
+            "expected": "ready",
+            "pass": true
+          },
+          "target_enabled": {
+            "answer": 0.9467,
+            "expected": true,
+            "pass": true
+          },
+          "target_visible": {
+            "answer": 0.9659,
+            "expected": true,
+            "pass": true
+          }
+        },
+        "ui-error": {
+          "is_error_state": {
+            "answer": 0.9188,
+            "expected": true,
+            "pass": true
+          },
+          "route": {
+            "answer": "backend_bug",
+            "expected": "backend_bug",
+            "pass": true
+          },
+          "severity": {
+            "answer": 2.6138,
+            "expected": [
+              2,
+              3
+            ],
+            "pass": true
+          }
+        }
+      },
+      "passed": 13
+    },
+    "gemini": {
+      "cases": 6,
+      "checks": 13,
+      "detail": {
+        "dash-above": {
+          "above_threshold": {
+            "answer": 0.9476251686562512,
+            "expected": true,
+            "pass": true
+          }
+        },
+        "dash-pair": {
+          "crossed_threshold": {
+            "answer": 0.8492608018067055,
+            "expected": true,
+            "pass": true
+          },
+          "direction": {
+            "answer": "rising",
+            "expected": "rising",
+            "pass": true
+          }
+        },
+        "photo-blur": {
+          "in_focus": {
+            "answer": 0.10255729481384757,
+            "expected": false,
+            "pass": true
+          },
+          "usable": {
+            "answer": 0.1111417715550724,
+            "expected": false,
+            "pass": true
+          }
+        },
+        "receipt": {
+          "doc_type": {
+            "answer": "receipt",
+            "expected": "receipt",
+            "pass": true
+          },
+          "ocr_ready": {
+            "answer": 0.8983575413912679,
+            "expected": true,
+            "pass": true
+          }
+        },
+        "ui-checkout": {
+          "page_state": {
+            "answer": "ready",
+            "expected": "ready",
+            "pass": true
+          },
+          "target_enabled": {
+            "answer": 0.9262979063853567,
+            "expected": true,
+            "pass": true
+          },
+          "target_visible": {
+            "answer": 0.9268217950168384,
+            "expected": true,
+            "pass": true
+          }
+        },
+        "ui-error": {
+          "is_error_state": {
+            "answer": 0.909563326197347,
+            "expected": true,
+            "pass": true
+          },
+          "route": {
+            "answer": "backend_bug",
+            "expected": "backend_bug",
+            "pass": true
+          },
+          "severity": {
+            "answer": 2.909012678749211,
+            "expected": [
+              2,
+              3
+            ],
+            "pass": true
+          }
+        }
+      },
+      "passed": 13
+    }
+  }
+}

@@ -1,0 +1,130 @@
+{
+  "calls_failed": 0,
+  "calls_made": 10,
+  "calls_ok": 10,
+  "calls_requested": 10,
+  "latency_ms": {
+    "max": 354.3269634246826,
+    "mean": 249.0,
+    "min": 173.46954345703125,
+    "p50": 246.11234664916992,
+    "p95": 354.3269634246826
+  },
+  "model": "gemini-decision-1",
+  "recorded_utc": "2026-11-12T23:14:36Z",
+  "run": "run-20261112-gemini-eval",
+  "samples": [
+    {
+      "cost_computed_usd": 2.61e-05,
+      "error": null,
+      "http_status": 200,
+      "index": 1,
+      "latency_ms": 293.6825752258301,
+      "ok": true,
+      "request_bytes": 798,
+      "usage_input_tokens": 261,
+      "utc": "2026-11-12T23:14:34Z"
+    },
+    {
+      "cost_computed_usd": 2.61e-05,
+      "error": null,
+      "http_status": 200,
+      "index": 2,
+      "latency_ms": 288.73276710510254,
+      "ok": true,
+      "request_bytes": 798,
+      "usage_input_tokens": 261,
+      "utc": "2026-11-12T23:14:34Z"
+    },
+    {
+      "cost_computed_usd": 2.61e-05,
+      "error": null,
+      "http_status": 200,
+      "index": 3,
+      "latency_ms": 300.10294914245605,
+      "ok": true,
+      "request_bytes": 798,
+      "usage_input_tokens": 261,
+      "utc": "2026-11-12T23:14:35Z"
+    },
+    {
+      "cost_computed_usd": 2.61e-05,
+      "error": null,
+      "http_status": 200,
+      "index": 4,
+      "latency_ms": 252.2108554840088,
+      "ok": true,
+      "request_bytes": 798,
+      "usage_input_tokens": 261,
+      "utc": "2026-11-12T23:14:35Z"
+    },
+    {
+      "cost_computed_usd": 2.61e-05,
+      "error": null,
+      "http_status": 200,
+      "index": 5,
+      "latency_ms": 354.3269634246826,
+      "ok": true,
+      "request_bytes": 798,
+      "usage_input_tokens": 261,
+      "utc": "2026-11-12T23:14:35Z"
+    },
+    {
+      "cost_computed_usd": 2.61e-05,
+      "error": null,
+      "http_status": 200,
+      "index": 6,
+      "latency_ms": 173.46954345703125,
+      "ok": true,
+      "request_bytes": 798,
+      "usage_input_tokens": 261,
+      "utc": "2026-11-12T23:14:35Z"
+    },
+    {
+      "cost_computed_usd": 2.61e-05,
+      "error": null,
+      "http_status": 200,
+      "index": 7,
+      "latency_ms": 246.11234664916992,
+      "ok": true,
+      "request_bytes": 798,
+      "usage_input_tokens": 261,
+      "utc": "2026-11-12T23:14:36Z"
+    },
+    {
+      "cost_computed_usd": 2.61e-05,
+      "error": null,
+      "http_status": 200,
+      "index": 8,
+      "latency_ms": 184.05914306640625,
+      "ok": true,
+      "request_bytes": 798,
+      "usage_input_tokens": 261,
+      "utc": "2026-11-12T23:14:36Z"
+    },
+    {
+      "cost_computed_usd": 2.61e-05,
+      "error": null,
+      "http_status": 200,
+      "index": 9,
+      "latency_ms": 196.93899154663086,
+      "ok": true,
+      "request_bytes": 798,
+      "usage_input_tokens": 261,
+      "utc": "2026-11-12T23:14:36Z"
+    },
+    {
+      "cost_computed_usd": 2.61e-05,
+      "error": null,
+      "http_status": 200,
+      "index": 10,
+      "latency_ms": 200.3011703491211,
+      "ok": true,
+      "request_bytes": 798,
+      "usage_input_tokens": 261,
+      "utc": "2026-11-12T23:14:36Z"
+    }
+  ],
+  "shape": "one support ticket, route + urgent, no images",
+  "spend_computed_usd": 0.000261
+}
