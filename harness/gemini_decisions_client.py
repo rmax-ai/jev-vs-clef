@@ -50,6 +50,7 @@ INPUT_RATE_USD_PER_MTOKEN = 0.10
 # Conservative estimator shared with the other arms (canonical bytes / 1.5).
 EST_BYTES_PER_TOKEN = 1.5
 USER_AGENT = "jev-vs-clef/1.0"
+CLIENT_PATH_VERSION = "ipv4-first-v1"
 
 
 class GeminiDecisionsError(RuntimeError):

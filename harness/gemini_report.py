@@ -13,6 +13,7 @@ import json
 import math
 import sys
 from collections import Counter, defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -23,9 +24,6 @@ REPO = Path(__file__).resolve().parent.parent
 BATTERY = json.loads((REPO / "cases" / "stress_battery.json").read_text())
 CASES = {c["id"]: c for c in BATTERY["cases"]}
 ARMS = ("gemini", "jev", "clef-flash")
-# Any gemini row slower than this is a pre-fix client-path artifact (23.9-25.5 s
-# per call from this host), not provider latency. Clean calls measured 173-354 ms.
-LATENCY_ARTIFACT_MS = 5000.0
 VISION = {c["id"]: c for c in VISION_CASES}
 
 
@@ -47,9 +45,11 @@ def dedupe(rows: list[dict]) -> list[dict]:
     and its successful retry would be counted as two tasks.
     """
     keyed: dict[tuple, dict] = {}
-    for r in rows:
+    for index, r in enumerate(rows):
         key = (r.get("phase"), r.get("case_id"), r.get("arm"), r.get("repeat_group"),
                r.get("batch_mode"), r.get("single_question"))
+        if r.get("phase") == "latency":
+            key += (r.get("seq", index),)
         keyed[key] = r
     return list(keyed.values())
 
@@ -126,11 +126,62 @@ def pct(values: list[float], q: float) -> float | None:
     return xs[idx]
 
 
+def parse_utc(value: object) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        return None
+    if parsed.strftime("%Y-%m-%dT%H:%M:%SZ") != value:
+        return None
+    return parsed.replace(tzinfo=timezone.utc)
+
+
+def latency_stats(values: list[float]) -> dict:
+    return {
+        "n": len(values),
+        "p50": pct(values, 50),
+        "p95": pct(values, 95),
+        "min": min(values) if values else None,
+        "max": max(values) if values else None,
+    }
+
+
+def fmt_ms(value) -> str:
+    return f"{value:.0f} ms" if isinstance(value, (int, float)) else "n/a"
+
+
 def main() -> int:
     run_dir = Path(sys.argv[1] if len(sys.argv) > 1 else "results/run-20261112-gemini-eval")
     calls = dedupe(load_calls(run_dir))
     main_calls = [c for c in calls if c.get("phase") == "main"]
     raw_calls = load_calls(run_dir)
+    meta_path = run_dir / "meta.json"
+    meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
+    if not isinstance(meta, dict):
+        meta = {}
+    boundary_raw = meta.get("client_path_boundary_utc")
+    boundary = parse_utc(boundary_raw)
+    cohort_values: dict[str, list[float]] = {"pre_fix": [], "post_fix": []}
+    cohort_unclassified = 0
+    for row in calls:
+        if (row.get("arm") != "gemini" or row.get("phase") not in ("main", "latency")
+                or not row.get("ok")):
+            continue
+        latency = row.get("latency_ms")
+        if (isinstance(latency, bool) or not isinstance(latency, (int, float))
+                or not math.isfinite(float(latency)) or latency < 0):
+            continue
+        timestamp = parse_utc(row.get("ts"))
+        if boundary is None or timestamp is None:
+            cohort_unclassified += 1
+            continue
+        cohort = "pre_fix" if timestamp < boundary else "post_fix"
+        cohort_values[cohort].append(float(latency))
+    latency_cohorts = {
+        name: latency_stats(values) for name, values in cohort_values.items()
+    }
     repeat_stability: dict = {}
     for case_id in sorted({c["case_id"] for c in raw_calls if c.get("arm") == "gemini"}):
         plain = [c for c in raw_calls
@@ -149,6 +200,9 @@ def main() -> int:
         "run": run_dir.name,
         "requests_total": len(calls),
         "requests_main": len(main_calls),
+        "client_path": meta.get("client_path"),
+        "client_path_boundary_utc": boundary_raw,
+        "latency_cohort_unclassified": cohort_unclassified,
         "latency_sample": sample,
         "repeat_stability": repeat_stability,
         "arms": {},
@@ -162,14 +216,11 @@ def main() -> int:
     }
 
     # --- per-arm health / latency / cost -----------------------------------
-    # Rows recorded before the IPv6 client fix took 23.9-25.5 s per call on this
-    # host regardless of payload. They stay in calls.jsonl as evidence, but the
-    # latency column must not quote them as provider latency.
     for arm in ARMS:
         rows = [c for c in main_calls if c["arm"] == arm]
         ok = [c for c in rows if c.get("ok")]
         lat_all = [c["latency_ms"] for c in ok if isinstance(c.get("latency_ms"), (int, float))]
-        lat = ([x for x in lat_all if x < LATENCY_ARTIFACT_MS] if arm == "gemini" else lat_all)
+        lat = lat_all
         cost = sum(c.get("cost_computed_usd") or 0.0 for c in ok)
         est = sum(c.get("cost_estimate_usd") or 0.0 for c in rows)
         usage = sum(c.get("usage_input_tokens") or 0 for c in ok)
@@ -178,19 +229,21 @@ def main() -> int:
             for c in rows if not c.get("ok")
         )
         qcount = sum(c.get("n_questions") or 0 for c in ok)
-        summary["arms"][arm] = {
+        arm_summary = {
             "requests": len(rows),
             "ok": len(ok),
             "errors": dict(errors),
             "latency_ms": {"p50": pct(lat, 50), "p95": pct(lat, 95), "min": min(lat) if lat else None,
-                           "max": max(lat) if lat else None, "n": len(lat),
-                           "excluded_artifact_rows": len(lat_all) - len(lat)},
+                           "max": max(lat) if lat else None, "n": len(lat)},
             "input_tokens": usage,
             "cost_computed_usd": round(cost, 6),
             "cost_estimate_usd": round(est, 6),
             "cost_per_call_usd": round(cost / len(ok), 8) if ok else None,
             "cost_per_question_usd": round(cost / qcount, 8) if qcount else None,
         }
+        if arm == "gemini":
+            arm_summary["latency_cohorts"] = latency_cohorts
+        summary["arms"][arm] = arm_summary
 
     # --- quality on labeled question-level decisions -----------------------
     labeled = defaultdict(lambda: {"n": 0, "correct": 0, "brier": [], "by_type": Counter(),
@@ -471,6 +524,35 @@ def main() -> int:
     L.append("| cost / question | " + " | ".join(
         f"${a[x]['cost_per_question_usd']:.6f}" if a[x]['cost_per_question_usd'] is not None else "n/a" for x in ARMS) + " |")
     L.append("| errors | " + " | ".join(str(a[x]['errors'] or "none") for x in ARMS) + " |")
+
+    crosscheck = run_dir / "latency-crosscheck.txt"
+    boundary_text = boundary_raw if isinstance(boundary_raw, str) else "not recorded"
+    client_path_text = meta.get("client_path")
+    L.append("\n### Gemini latency cohorts by client path\n")
+    L.append(
+        f"Boundary: `{boundary_text}` UTC; client path: "
+        f"`{client_path_text if client_path_text is not None else 'not recorded'}`."
+    )
+    L.append(
+        f"Boundary evidence: `{crosscheck.name}`."
+        if crosscheck.exists()
+        else "Boundary evidence: `latency-crosscheck.txt` is not present in this run."
+    )
+    L.append("Pre-fix rows are earlier than the boundary; post-fix rows are at or after it. "
+             "No latency cutoff drops slow rows.")
+    L.append("| cohort | n | p50 | p95 | min | max |")
+    L.append("|---|---:|---:|---:|---:|---:|")
+    for name in ("pre_fix", "post_fix"):
+        cohort = latency_cohorts[name]
+        L.append(
+            f"| {name} | {cohort['n']} | {fmt_ms(cohort['p50'])} | "
+            f"{fmt_ms(cohort['p95'])} | {fmt_ms(cohort['min'])} | "
+            f"{fmt_ms(cohort['max'])} |"
+        )
+    if cohort_unclassified:
+        L.append(f"\nUnclassified Gemini latency rows: {cohort_unclassified} "
+                 "(missing or invalid timestamp/boundary).")
+
     if a["gemini"]["errors"]:
         L.append("\nThe Gemini `400`s are one adapter defect, not model refusals: structured (`dict`) "
                  "state was sent as a bare object where the API requires a content block. It was fixed "
@@ -489,33 +571,15 @@ def main() -> int:
 
     if sample:
         lat = sample["latency_ms"]
-        harness_lat = a["gemini"]["latency_ms"]
-        L.append("\n### Gemini latency: clean sample after the client fix\n")
-        L.append(f"Fixed-shape sequential sample (`harness/latency_sample.py`, n={sample['calls_ok']}): "
-                 f"p50 {lat['p50']:.0f} ms, p95 {lat['p95']:.0f} ms, "
-                 f"min {lat['min']:.0f} ms, max {lat['max']:.0f} ms, "
-                 f"${sample['spend_computed_usd']:.6f}. The 8 guardrail calls appended to the ledger "
-                 f"landed in the same band (183–284 ms).")
-        L.append(f"Rows slower than {LATENCY_ARTIFACT_MS:.0f} ms are the pre-fix IPv6 address-selection "
-                 f"defect (23.9–25.5 s per call on this host regardless of payload); "
-                 f"{harness_lat['excluded_artifact_rows']} such rows are excluded from the latency "
-                 f"column above and remain in `calls.jsonl`. `jev` and `clef-flash` never showed the "
-                 f"defect.")
-    crosscheck = run_dir / "latency-crosscheck.txt"
-    if crosscheck.exists() and not sample:
-        L.append("\n### Gemini latency is a client-path artifact in this run — read before quoting\n")
-        L.append("Every Gemini call in `calls.jsonl` took ~23.9–25.5 s regardless of payload size "
-                 "(16–1,333 input tokens, 1–8 questions). The identical request through `curl` and "
-                 "through the same client after the fix returns in well under a second, so the run's "
-                 "Gemini p50/p95 measure this host's address selection (IPv6 AAAA records with a "
-                 "blackholed route; `urllib` walks the list serially), not model latency. "
-                 "The fix ships in `harness/gemini_decisions_client.py` (`prefer_ipv4`). "
-                 "A clean Gemini latency sample has not been recorded for this run.\n")
-        L.append("```")
-        L.append(crosscheck.read_text(encoding="utf-8").strip())
-        L.append("```")
-        L.append("\n`jev` and `clef-flash` latencies are unaffected (same client stack, but their "
-                 "endpoints resolve to reachable addresses from this host).")
+        L.append("\n### Previously recorded external Gemini latency probes\n")
+        L.append(
+            f"External fixed-shape probes in `latency-sample.json` "
+            f"(n={sample['calls_ok']}): p50 {fmt_ms(lat.get('p50'))}, "
+            f"p95 {fmt_ms(lat.get('p95'))}, min {fmt_ms(lat.get('min'))}, "
+            f"max {fmt_ms(lat.get('max'))}, "
+            f"${sample['spend_computed_usd']:.6f}. These recorded probes remain external "
+            "and are not replayed by the guarded latency mode."
+        )
 
     L.append("\n## Quality on author-labeled decisions\n")
     L.append("| arm | correct / n | accuracy | by type | Brier (yes/no) |")
@@ -562,10 +626,6 @@ def main() -> int:
         L.append(f"| {x} | {b.get('batched_questions')} | {b.get('batched_latency_ms')} ms | "
                  f"{b.get('single_p50_latency_ms')} ms | {b.get('latency_ratio_batched_over_single')} | "
                  f"{b.get('agreement_batched_vs_single')} |")
-    if (summary["batching"].get("gemini", {}).get("batched_latency_ms") or 0) > LATENCY_ARTIFACT_MS:
-        L.append(f"\nThe Gemini batching latencies come from pre-fix rows (client-path artifact). The "
-                 f"ratio stays informative because both sides carry the same defect; the absolute "
-                 f"latency does not.")
 
     L.append("\n## Format sensitivity (one semantic: prose / flat JSON / nested JSON)\n")
     L.append("| arm | question | values | formats measured | max numeric spread | label stable |")
@@ -598,10 +658,8 @@ def main() -> int:
     L.append("\n## Reading these numbers\n")
     L.append("- Agreement is not accuracy. Only the author-labeled subset bounds accuracy, and n is small "
              "(see the quality table); borderline cases exist to show divergence, not to score arms.")
-    L.append("- **The Gemini latency column uses post-fix rows only.** Rows above 5,000 ms are this host's "
-             "IPv6 address-selection defect from the pre-fix client and are excluded (see the sample "
-             "above); every quoted latency is a single-call, sequential measurement from one host and "
-             "does not establish a deployment SLO.")
+    L.append("- Gemini latency includes every measurable main-phase row. The pre-fix and post-fix "
+             "cohorts use the durable UTC boundary in run metadata, so slow rows remain visible.")
     L.append("- Cost is computed from provider-reported input tokens where the provider reports them; "
              "verify against billing before budgeting at scale. Gemini's per-call cost is higher here mostly "
              "because six of its calls carry images (~1.1–1.3k input tokens each).")

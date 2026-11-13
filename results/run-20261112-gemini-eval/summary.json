@@ -35,7 +35,6 @@
         "n": 31
       },
       "latency_ms": {
-        "excluded_artifact_rows": 0,
         "max": 21757.82084465027,
         "min": 16802.964210510254,
         "n": 43,
@@ -65,13 +64,28 @@
         "correct": 26,
         "n": 31
       },
+      "latency_cohorts": {
+        "post_fix": {
+          "max": 283.7235927581787,
+          "min": 182.50012397766113,
+          "n": 7,
+          "p50": 258.5597038269043,
+          "p95": 283.7235927581787
+        },
+        "pre_fix": {
+          "max": 25520.09606361389,
+          "min": 22975.188493728638,
+          "n": 35,
+          "p50": 24818.775177001953,
+          "p95": 25208.670377731323
+        }
+      },
       "latency_ms": {
-        "excluded_artifact_rows": 35,
-        "max": 283.7235927581787,
+        "max": 25520.09606361389,
         "min": 182.50012397766113,
-        "n": 7,
-        "p50": 258.5597038269043,
-        "p95": 283.7235927581787
+        "n": 42,
+        "p50": 24793.029069900513,
+        "p95": 25123.303174972534
       },
       "ok": 42,
       "requests": 47
@@ -95,7 +109,6 @@
         "n": 31
       },
       "latency_ms": {
-        "excluded_artifact_rows": 0,
         "max": 386.1410617828369,
         "min": 211.5182876586914,
         "n": 37,
@@ -132,6 +145,8 @@
       "single_p50_latency_ms": 252
     }
   },
+  "client_path": "ipv4-first-v1",
+  "client_path_boundary_utc": "2026-11-12T12:08:00Z",
   "determinism": {
     "E:A01:clef-flash": {
       "arm": "clef-flash",
@@ -297,6 +312,7 @@
       }
     }
   },
+  "latency_cohort_unclassified": 0,
   "latency_sample": {
     "calls_failed": 0,
     "calls_made": 10,

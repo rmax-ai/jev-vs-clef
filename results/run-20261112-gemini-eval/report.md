@@ -15,13 +15,23 @@ Raw records: `run-20261112-gemini-eval/calls.jsonl` (148 rows, 132 planned tasks
 | metric | gemini | jev | clef-flash |
 |---|---:|---:|---:|
 | requests ok/total | 42/47 | 37/37 | 43/43 |
-| p50 latency | 259 ms | 254 ms | 18333 ms |
-| p95 latency | 284 ms | 367 ms | 18976 ms |
-| max latency | 284 ms | 386 ms | 21758 ms |
+| p50 latency | 24793 ms | 254 ms | 18333 ms |
+| p95 latency | 25123 ms | 367 ms | 18976 ms |
+| max latency | 25520 ms | 386 ms | 21758 ms |
 | computed spend | $0.001796 | $0.000695 | $0.001578 |
 | cost / call | $0.000043 | $0.000019 | $0.000037 |
 | cost / question | $0.000020 | $0.000009 | $0.000017 |
 | errors | {'http_400': 5} | none | none |
+
+### Gemini latency cohorts by client path
+
+Boundary: `2026-11-12T12:08:00Z` UTC; client path: `ipv4-first-v1`.
+Boundary evidence: `latency-crosscheck.txt`.
+Pre-fix rows are earlier than the boundary; post-fix rows are at or after it. No latency cutoff drops slow rows.
+| cohort | n | p50 | p95 | min | max |
+|---|---:|---:|---:|---:|---:|
+| pre_fix | 35 | 24819 ms | 25209 ms | 22975 ms | 25520 ms |
+| post_fix | 7 | 259 ms | 284 ms | 183 ms | 284 ms |
 
 The Gemini `400`s are one adapter defect, not model refusals: structured (`dict`) state was sent as a bare object where the API requires a content block. It was fixed in `harness/gemini_decisions_client.py` during this run. The 8 missing guardrail calls (C01–C05, C08, C09 and one C01 repeat) were appended after the fix, so every labeled guardrail case now carries a Gemini answer. The remaining error rows are pre-fix attempts with no successful rerun: the two structured-state format variants (`B1f`, `B1n`) and the three determinism repeats of `C01`. They stay in `calls.jsonl`; they are excluded from every metric above, and the sections that depend on them are marked as not measured for the Gemini arm.
 
@@ -35,10 +45,9 @@ The Gemini `400`s are one adapter defect, not model refusals: structured (`dict`
 
 `ui-error` repeat check: 2 identical fixed-shape calls returned 1 distinct answer payload.
 
-### Gemini latency: clean sample after the client fix
+### Previously recorded external Gemini latency probes
 
-Fixed-shape sequential sample (`harness/latency_sample.py`, n=10): p50 246 ms, p95 354 ms, min 173 ms, max 354 ms, $0.000261. The 8 guardrail calls appended to the ledger landed in the same band (183–284 ms).
-Rows slower than 5000 ms are the pre-fix IPv6 address-selection defect (23.9–25.5 s per call on this host regardless of payload); 35 such rows are excluded from the latency column above and remain in `calls.jsonl`. `jev` and `clef-flash` never showed the defect.
+External fixed-shape probes in `latency-sample.json` (n=10): p50 246 ms, p95 354 ms, min 173 ms, max 354 ms, $0.000261. These recorded probes remain external and are not replayed by the guarded latency mode.
 
 ## Quality on author-labeled decisions
 
@@ -84,8 +93,6 @@ Not measured for the Gemini arm: `E:C01:gemini` — the repeats were pre-fix `40
 | jev | 8 | 367 ms | 252 ms | 1.46 | 1.0 |
 | clef-flash | 8 | 17186 ms | 18619 ms | 0.92 | 1.0 |
 
-The Gemini batching latencies come from pre-fix rows (client-path artifact). The ratio stays informative because both sides carry the same defect; the absolute latency does not.
-
 ## Format sensitivity (one semantic: prose / flat JSON / nested JSON)
 
 | arm | question | values | formats measured | max numeric spread | label stable |
@@ -122,6 +129,6 @@ jev: **unsupported** — the Jev gateway evaluation model accepts no image input
 ## Reading these numbers
 
 - Agreement is not accuracy. Only the author-labeled subset bounds accuracy, and n is small (see the quality table); borderline cases exist to show divergence, not to score arms.
-- **The Gemini latency column uses post-fix rows only.** Rows above 5,000 ms are this host's IPv6 address-selection defect from the pre-fix client and are excluded (see the sample above); every quoted latency is a single-call, sequential measurement from one host and does not establish a deployment SLO.
+- Gemini latency includes every measurable main-phase row. The pre-fix and post-fix cohorts use the durable UTC boundary in run metadata, so slow rows remain visible.
 - Cost is computed from provider-reported input tokens where the provider reports them; verify against billing before budgeting at scale. Gemini's per-call cost is higher here mostly because six of its calls carry images (~1.1–1.3k input tokens each).
 - The Gemini `400`s and the `clef-flash` `422`s are harness defects, not model behaviour: the first run had a structured-state bug and a data-URI bug. Both are fixed in the harness; the raw failures stay in `calls.jsonl` and the successful reruns are appended, so the evidence shows both the defect and the repair.

@@ -107,6 +107,61 @@ class CapsTests(unittest.TestCase):
             gemini_eval.execute = old_execute
         return rc, issued, output.getvalue()
 
+    def run_latency_sample(
+        self,
+        out: str,
+        calls: int,
+        *,
+        max_requests: int = 150,
+    ) -> tuple[int, list[int], str]:
+        provider_calls: list[int] = []
+
+        def fake_post(*_args) -> tuple[int, dict, float]:
+            provider_calls.append(1)
+            return 200, {
+                "answers": {"route": "technical"},
+                "usage": {"total_input_tokens": 261},
+            }, 1.0
+
+        old_argv = sys.argv
+        sys.argv = [
+            "gemini_eval.py",
+            "--out", out,
+            "--latency-sample", str(calls),
+            "--append",
+            "--max-requests", str(max_requests),
+        ]
+        output = io.StringIO()
+        try:
+            with (
+                mock.patch.object(gemini_decisions_client, "load_api_key",
+                                  return_value="offline-placeholder"),
+                mock.patch.object(gemini_decisions_client, "_post", side_effect=fake_post),
+                redirect_stdout(output),
+            ):
+                rc = gemini_eval.main()
+        finally:
+            sys.argv = old_argv
+        return rc, provider_calls, output.getvalue()
+
+    def run_boundary_only_append(self, out: str, boundary: str) -> tuple[int, str]:
+        old_argv = sys.argv
+        sys.argv = [
+            "gemini_eval.py",
+            "--out", out,
+            "--phases", "",
+            "--only-cases", "__none__",
+            "--append",
+            "--client-path-boundary-utc", boundary,
+        ]
+        output = io.StringIO()
+        try:
+            with redirect_stdout(output):
+                rc = gemini_eval.main()
+        finally:
+            sys.argv = old_argv
+        return rc, output.getvalue()
+
     def test_append_records_the_effective_limits(self) -> None:
         seed_ledger(
             self.results, "limits",
@@ -590,6 +645,230 @@ class CapsTests(unittest.TestCase):
         self.assertEqual(orphan_issued, [])
         self.assertEqual(len(orphan_output.strip().splitlines()), 1)
         self.assertEqual(orphan_before, orphan_after)
+
+    def test_latency_reservation_and_case_filter_refusal(self) -> None:
+        conflict_rc, conflict_issued, conflict_output = self.run_append(
+            "latency-conflict", "--latency-sample", "1", append=False)
+        self.assertEqual(conflict_rc, 2)
+        self.assertEqual(conflict_issued, [])
+        self.assertEqual(len(conflict_output.strip().splitlines()), 1)
+        self.assertFalse((self.results / "latency-conflict").exists())
+
+        seed_ledger(self.results, "latency", requests=0, attempts=0, spend=0.0)
+        rc, provider_calls, _ = self.run_latency_sample(
+            "latency", 2, max_requests=2)
+        run_dir = self.results / "latency"
+        rows = [
+            json.loads(line)
+            for line in (run_dir / "calls.jsonl").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        reservations = [
+            json.loads(line)
+            for line in (run_dir / "reservations.jsonl").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        estimate = gemini_eval.estimate_task_usd(
+            gemini_eval.build_latency_tasks(1)[0], "gemini")
+
+        self.assertEqual(rc, 0)
+        self.assertEqual(len(provider_calls), 2)
+        self.assertEqual(len(rows), 2)
+        self.assertTrue(all(row["phase"] == "latency" for row in rows))
+        self.assertTrue(all(row["case_id"] == "LAT1" for row in rows))
+        self.assertTrue(all(
+            row["client_path"] == gemini_decisions_client.CLIENT_PATH_VERSION
+            for row in rows
+        ))
+        self.assertEqual(len(reservations), 2)
+        for reservation in reservations:
+            self.assertEqual(set(reservation), {"seq", "attempt_index", "est_usd"})
+            self.assertAlmostEqual(reservation["est_usd"], estimate)
+
+    def test_latency_kill_and_restart_keep_reservation(self) -> None:
+        seed_ledger(self.results, "latency-killed", requests=0, attempts=0, spend=0.0)
+        marker = self.results / "latency-provider-called"
+        child = textwrap.dedent(
+            """
+            import importlib.util, os, pathlib, sys
+            repo = pathlib.Path(sys.argv[1])
+            root = pathlib.Path(sys.argv[2])
+            marker = pathlib.Path(sys.argv[3])
+            spec = importlib.util.spec_from_file_location(
+                "gemini_eval_latency_kill", repo / "harness" / "gemini_eval.py")
+            m = importlib.util.module_from_spec(spec)
+            sys.modules["gemini_eval_latency_kill"] = m
+            spec.loader.exec_module(m)
+            m.RESULTS = root
+            m.gemini_client.load_api_key = lambda: "offline-placeholder"
+
+            def fake_post(*_args):
+                marker.write_text("provider call completed", encoding="utf-8")
+                os._exit(9)
+
+            m.gemini_client._post = fake_post
+            sys.argv = ["gemini_eval.py", "--out", "latency-killed",
+                        "--latency-sample", "2", "--append", "--max-requests", "2"]
+            m.main()
+            """
+        )
+        killed = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                child,
+                str(gemini_eval.REPO),
+                str(self.results),
+                str(marker),
+            ],
+            cwd=str(gemini_eval.REPO),
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        run_dir = self.results / "latency-killed"
+        journal_path = run_dir / "reservations.jsonl"
+        calls_path = run_dir / "calls.jsonl"
+        before_journal = journal_path.read_bytes()
+        before_calls = calls_path.read_bytes()
+        journal_rows = [json.loads(line) for line in before_journal.decode().splitlines()]
+        estimate = gemini_eval.estimate_task_usd(
+            gemini_eval.build_latency_tasks(1)[0], "gemini")
+
+        self.assertEqual(killed.returncode, 9, killed.stdout + killed.stderr)
+        self.assertEqual(marker.read_text(encoding="utf-8"), "provider call completed")
+        self.assertEqual(len(journal_rows), 1)
+        self.assertAlmostEqual(journal_rows[0]["est_usd"], estimate)
+        self.assertEqual(before_calls, b"")
+
+        restart_rc, restart_calls, restart_output = self.run_latency_sample(
+            "latency-killed", 2, max_requests=2)
+        self.assertEqual(restart_rc, 2)
+        self.assertEqual(restart_calls, [])
+        self.assertEqual(len(restart_output.strip().splitlines()), 1)
+        self.assertEqual(journal_path.read_bytes(), before_journal)
+        self.assertEqual(calls_path.read_bytes(), before_calls)
+
+    def test_latency_cohorts_split_at_client_path_boundary(self) -> None:
+        run_dir = self.results / "cohort"
+        run_dir.mkdir()
+        boundary = "2026-11-12T12:08:00Z"
+        (run_dir / "meta.json").write_text(json.dumps({
+            "run": "cohort",
+            "client_path": "ipv4-first-v1",
+            "client_path_boundary_utc": boundary,
+            "requests_issued": 4,
+            "attempts_total": 4,
+            "spend_estimate_usd": 0.0,
+            "external_probes": {"attempts": 0, "spend_usd": 0.0},
+            "supplementary": [],
+        }), encoding="utf-8")
+
+        def row(ts: str, case_id: str, latency_ms: float) -> str:
+            return json.dumps({
+                "seq": case_id,
+                "ts": ts,
+                "phase": "main",
+                "case_id": case_id,
+                "arm": "gemini",
+                "model": "gemini",
+                "ok": True,
+                "http_status": 200,
+                "latency_ms": latency_ms,
+                "attempts": 1,
+                "cost_estimate_usd": 0.0,
+                "cost_computed_usd": 0.0,
+                "answers": {},
+                "n_questions": 1,
+            }) + "\n"
+
+        (run_dir / "calls.jsonl").write_text(
+            row("2026-11-12T12:06:00Z", "C06", 200.0)
+            + row("2026-11-12T12:07:00Z", "C07", 400.0)
+            + row("2026-11-12T12:08:00Z", "A01", 30000.0)
+            + row("2026-11-12T12:08:01Z", "A02", 250.0),
+            encoding="utf-8",
+        )
+        (run_dir / "latency-crosscheck.txt").write_text(
+            "post-fix client call recorded after the boundary\n",
+            encoding="utf-8",
+        )
+        report = gemini_eval.REPO / "harness" / "gemini_report.py"
+        proc = subprocess.run(
+            [sys.executable, str(report), str(run_dir)],
+            cwd=str(gemini_eval.REPO),
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        summary = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
+        cohorts = summary["arms"]["gemini"]["latency_cohorts"]
+        report_text = (run_dir / "report.md").read_text(encoding="utf-8")
+
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertEqual(cohorts["pre_fix"], {
+            "n": 2, "p50": 200.0, "p95": 400.0, "min": 200.0, "max": 400.0,
+        })
+        self.assertEqual(cohorts["post_fix"], {
+            "n": 2, "p50": 250.0, "p95": 30000.0,
+            "min": 250.0, "max": 30000.0,
+        })
+        self.assertIn(boundary, report_text)
+        self.assertIn("latency-crosscheck.txt", report_text)
+        self.assertIn("30000 ms", report_text)
+
+    def test_client_path_boundary_is_immutable(self) -> None:
+        seed_ledger(self.results, "boundary-only", requests=7, attempts=7, spend=0.1)
+        boundary_only_dir = self.results / "boundary-only"
+        original_meta = json.loads(
+            (boundary_only_dir / "meta.json").read_text(encoding="utf-8"))
+        original_calls = (boundary_only_dir / "calls.jsonl").read_bytes()
+        rc, output = self.run_boundary_only_append(
+            "boundary-only", "2026-11-12T12:08:00Z")
+        updated_meta = json.loads(
+            (boundary_only_dir / "meta.json").read_text(encoding="utf-8"))
+        self.assertEqual(rc, 0)
+        self.assertEqual(len(output.strip().splitlines()), 1)
+        self.assertEqual(updated_meta["client_path"], "ipv4-first-v1")
+        self.assertEqual(
+            updated_meta["client_path_boundary_utc"], "2026-11-12T12:08:00Z")
+        self.assertTrue(all(
+            updated_meta[key] == value for key, value in original_meta.items()
+        ))
+        self.assertEqual(
+            (boundary_only_dir / "calls.jsonl").read_bytes(), original_calls)
+        self.assertFalse((boundary_only_dir / "reservations.jsonl").exists())
+
+        seed_ledger(self.results, "boundary", requests=0, attempts=0, spend=0.0)
+        first_rc, first_calls, _ = self.run_append(
+            "boundary", "--client-path-boundary-utc", "2026-11-12T12:08:00Z")
+        run_dir = self.results / "boundary"
+        meta_path = run_dir / "meta.json"
+        self.assertEqual(first_rc, 0)
+        self.assertEqual(len(first_calls), 1)
+        first_meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        self.assertEqual(
+            first_meta["client_path_boundary_utc"], "2026-11-12T12:08:00Z")
+        self.assertEqual(first_meta["client_path"], "ipv4-first-v1")
+        before = {path.name: path.read_bytes() for path in run_dir.iterdir() if path.is_file()}
+
+        refused_rc, refused_calls, refused_output = self.run_append(
+            "boundary", "--client-path-boundary-utc", "2026-11-13T00:00:00Z")
+        after = {path.name: path.read_bytes() for path in run_dir.iterdir() if path.is_file()}
+        self.assertEqual(refused_rc, 2)
+        self.assertEqual(refused_calls, [])
+        self.assertEqual(len(refused_output.strip().splitlines()), 1)
+        self.assertEqual(before, after)
+
+        invalid_rc, invalid_calls, invalid_output = self.run_append(
+            "boundary", "--client-path-boundary-utc", "2026-11-12T12:08:00+00:00")
+        invalid_after = {
+            path.name: path.read_bytes() for path in run_dir.iterdir() if path.is_file()
+        }
+        self.assertEqual(invalid_rc, 2)
+        self.assertEqual(invalid_calls, [])
+        self.assertEqual(len(invalid_output.strip().splitlines()), 1)
+        self.assertEqual(before, invalid_after)
 
 
 if __name__ == "__main__":

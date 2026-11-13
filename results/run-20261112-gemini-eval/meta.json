@@ -12,6 +12,8 @@
     "gemini": 49,
     "jev": 38
   },
+  "client_path": "ipv4-first-v1",
+  "client_path_boundary_utc": "2026-11-12T12:08:00Z",
   "created_utc": "2026-11-12T11:30:04Z",
   "external_probes": {
     "attempts": 20,
